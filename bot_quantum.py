@@ -2,10 +2,10 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║
-║   👁️ Visão Gráfica | ⏱️ Timing Corrigido  ║
-║   🔇 Anti-Spam Reforçado (5 min)           ║
-║   🇧🇷 Horário de Brasília                  ║
+║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader   ║
+║   🕯️ Pavio | 📈 Tendência | 👁️ Visão Gráfica║
+║   🏆 Catálogo Inteligente de Pares         ║
+║   ☁️ Railway Ready | 🇧🇷 Brasília         ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -14,7 +14,7 @@ from collections import deque
 from pathlib import Path
 
 # ═══════════════════════════════════════════
-# CONFIGURAR HORÁRIO DE BRASÍLIA
+# 🇧🇷 HORÁRIO DE BRASÍLIA
 # ═══════════════════════════════════════════
 os.environ['TZ'] = 'America/Sao_Paulo'
 time.tzset()
@@ -31,11 +31,11 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   👁️ Visão Gráfica | 🇧🇷 Brasília        ║")
+    print(f"║   👁️ Visão Gráfica | 🇧🇷 Brasília       ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 # ═══════════════════════════════════════════
-# CONFIGURAÇÃO VIA VARIÁVEIS DE AMBIENTE (NUVEM)
+# ✅ CONFIGURAÇÃO PARA NUVEM (RAILWAY/RENDER)
 # ═══════════════════════════════════════════
 def carregar_config():
     return {
@@ -330,6 +330,9 @@ class QuantumIA:
             return melhor
         except: return None
 
+# ═══════════════════════════════════════════
+# 🧠 CÉREBRO VISUAL + TRADER
+# ═══════════════════════════════════════════
 class CerebroVisual:
     def __init__(self):
         self.historico = deque(maxlen=50)
@@ -337,7 +340,6 @@ class CerebroVisual:
         self.max_pavio_ratio = 0.6
         self.stats_pares = {nome: {'wins':0, 'losses':0, 'total':0, 'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias = {nome: "NEUTRA" for nome in ATIVOS_OTC}
-        self._ultima_exibicao_recusa = {}
     
     def atualizar_stats(self, ativo, resultado):
         if ativo in self.stats_pares:
@@ -426,27 +428,14 @@ class CerebroVisual:
             detalhes.append("Sem rejeição inferior")
         return min(nota, 100), ", ".join(detalhes) if detalhes else "Setup visual neutro"
     
-    def pode_exibir_recusa(self, par, direcao):
-        chave = f"{par}_{direcao}"
-        agora = time.time()
-        if chave in self._ultima_exibicao_recusa:
-            if agora - self._ultima_exibicao_recusa[chave] < 300:
-                return False
-        self._ultima_exibicao_recusa[chave] = agora
-        return True
-    
     def avaliar(self, sinal, velas):
         direcao = sinal.get('direcao')
-        ativo = sinal.get('ativo', '')
         pavio_ok, pavio_msg = self._filtro_pavio(velas, direcao)
         if not pavio_ok:
             return False, 0, [pavio_msg], 0, ""
         tendencia_ok, tendencia_msg = self._filtro_tendencia(velas, direcao)
         if not tendencia_ok:
-            if self.pode_exibir_recusa(ativo, direcao):
-                return False, 0, [tendencia_msg], 0, ""
-            else:
-                return False, 0, ["__SILENCIADO__"], 0, ""
+            return False, 0, [tendencia_msg], 0, ""
         nota_visual, detalhes_visual = self.avaliacao_visual(velas, direcao)
         if nota_visual < 50:
             return False, 0, [f"👁️ Gráfico ruim ({detalhes_visual})"], nota_visual, detalhes_visual
@@ -640,7 +629,7 @@ class Bot:
         at = sinal['ativo']
         d = sinal['direcao']
         try:
-            await self.esperar(10)
+            await self.esperar(8)
             v = self.iq.velas[at]
             if len(v) < 2: self.op = False; return
             pc = v[-1]['open']
@@ -657,8 +646,7 @@ class Bot:
                 self.op = False
                 return
             print(f"  ❌ Principal")
-            self.g = 1
-            v = self.iq.velas[at]
+            self.g = 1            v = self.iq.velas[at]
             pg = v[-1]['open'] if len(v) > 0 else pc
             print(f"  🔄 GALE 1 | OPEN:{pg:.5f}")
             await self.esperar(5)
@@ -745,10 +733,9 @@ class Bot:
                                 self.ult = time.time()
                                 asyncio.create_task(self.corrigir(sinal))
                             else:
-                                motivos_str = ', '.join([m for m in motivos if m != "__SILENCIADO__"])
-                                if motivos_str:
-                                    self.sinais_recusados += 1
-                                    print(f"  {C.Y}🧠 Sinal recusado ({sinal['ativo']}-OTC {sinal['direcao']}): {motivos_str} (Score: {score:.0f}/100){C.E}")
+                                self.sinais_recusados += 1
+                                motivos_str = ', '.join(motivos) if motivos else 'Score baixo'
+                                print(f"  {C.Y}🧠 Sinal recusado ({sinal['ativo']}-OTC {sinal['direcao']}): {motivos_str} (Score: {score:.0f}/100){C.E}")
                     except Exception as e:
                         print(f"  {C.Y}⚠️ {str(e)[:30]}{C.E}")
                 if agora.second in [0, 30]:
