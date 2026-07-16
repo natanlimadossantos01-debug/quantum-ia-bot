@@ -330,9 +330,6 @@ class QuantumIA:
             return melhor
         except: return None
 
-# ═══════════════════════════════════════════
-# 🧠 CÉREBRO VISUAL + TRADER
-# ═══════════════════════════════════════════
 class CerebroVisual:
     def __init__(self):
         self.historico = deque(maxlen=50)
@@ -631,7 +628,9 @@ class Bot:
         try:
             await self.esperar(8)
             v = self.iq.velas[at]
-            if len(v) < 2: self.op = False; return
+            if len(v) < 2:
+                self.op = False
+                return
             pc = v[-1]['open']
             hora = v[-1]['time'].strftime('%H:%M')
             print(f"\n  ⚛️ {at}-OTC {d} | OPEN:{pc:.5f} | Vela:{hora}")
@@ -646,7 +645,8 @@ class Bot:
                 self.op = False
                 return
             print(f"  ❌ Principal")
-            self.g = 1            v = self.iq.velas[at]
+            self.g = 1
+            v = self.iq.velas[at]
             pg = v[-1]['open'] if len(v) > 0 else pc
             print(f"  🔄 GALE 1 | OPEN:{pg:.5f}")
             await self.esperar(5)
