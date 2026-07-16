@@ -5,12 +5,19 @@
 ║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║
 ║   👁️ Visão Gráfica | ⏱️ Timing Corrigido  ║
 ║   🔇 Anti-Spam Reforçado (5 min)           ║
+║   🇧🇷 Horário de Brasília                  ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
 from datetime import datetime, timedelta
 from collections import deque
 from pathlib import Path
+
+# ═══════════════════════════════════════════
+# CONFIGURAR HORÁRIO DE BRASÍLIA
+# ═══════════════════════════════════════════
+os.environ['TZ'] = 'America/Sao_Paulo'
+time.tzset()
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
@@ -24,7 +31,7 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   👁️ Visão Gráfica | ⏱️ Timing Corrigido ║")
+    print(f"║   👁️ Visão Gráfica | 🇧🇷 Brasília        ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 # ═══════════════════════════════════════════
@@ -710,8 +717,8 @@ class Bot:
             return
         self.iq.atualizar()
         await self.catalogacao_inicial()
-        print(f"\n  ✅ QUANTUM IA INICIADA | 🧠 Cérebro Visual | 🔄 1 GALE | 👁️ Visão Gráfica | ⏱️ Timing Corrigido\n")
-        self.tg.send(f"⚛️ *QUANTUM IA + VISÃO GRÁFICA*\n📊 3 pares OTC\n👁️ Análise Visual de Gráfico\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA INICIADA | 🧠 Cérebro Visual | 🔄 1 GALE | 👁️ Visão Gráfica | 🇧🇷 Brasília\n")
+        self.tg.send(f"⚛️ *QUANTUM IA + VISÃO GRÁFICA*\n📊 3 pares OTC\n👁️ Análise Visual de Gráfico\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         while True:
             try:
                 agora = datetime.now()
