@@ -3,8 +3,8 @@
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
 ║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║
-║   👁️ Visão Gráfica | 📈 LTA/LTB           ║
-║   ⚡ MODO TURBO: +Sinais +Assertividade    ║
+║   👁️ Visão Gráfica | ⏱️ Timing Corrigido  ║
+║   🔇 Anti-Spam Reforçado (5 min)           ║
 ║   ☁️ Railway Ready | 🇧🇷 Brasília         ║
 ╚══════════════════════════════════════════════╝
 """
@@ -31,11 +31,11 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   ⚡ MODO TURBO | 🇧🇷 Brasília           ║")
+    print(f"║   👁️ Visão Gráfica | 🇧🇷 Brasília       ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 # ═══════════════════════════════════════════
-# ✅ CONFIGURAÇÃO PARA NUVEM
+# ✅ CONFIGURAÇÃO VIA VARIÁVEIS DE AMBIENTE (RAILWAY)
 # ═══════════════════════════════════════════
 def carregar_config():
     return {
@@ -89,7 +89,7 @@ class Telegram:
             pass
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS ROBUSTAS
+# 5 ESTRATÉGIAS ROBUSTAS (MANTIDAS)
 # ═══════════════════════════════════════════
 class Mortalha:
     def sma(self, d, p):
@@ -310,12 +310,12 @@ class QuantumIA:
             return None, 0, total
         except: return None, 0, 0
     
-    def melhor_par(self, velas_dict, bloqueados, stats_pares, pares_bloqueados_corr):
+    def melhor_par(self, velas_dict, bloqueados, stats_pares):
         try:
             melhor = None
             melhor_score = 0
             for nome, velas in velas_dict.items():
-                if nome in bloqueados or nome in pares_bloqueados_corr: continue
+                if nome in bloqueados: continue
                 if nome in stats_pares and stats_pares[nome]['total'] >= 5:
                     if stats_pares[nome]['taxa'] < 50: continue
                 if len(velas) >= 30:
@@ -333,50 +333,19 @@ class QuantumIA:
 class CerebroVisual:
     def __init__(self):
         self.historico = deque(maxlen=50)
-        self.score_minimo = 55
-        self.score_base = 55
-        self.max_pavio_ratio = 0.7
+        self.score_minimo = 60
+        self.max_pavio_ratio = 0.6
         self.stats_pares = {nome: {'wins':0, 'losses':0, 'total':0, 'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias = {nome: "NEUTRA" for nome in ATIVOS_OTC}
         self._ultima_exibicao_recusa = {}
-        self.wins_seguidos = 0
-        self.losses_seguidos = 0
-        self.ultimo_loss_time = 0
-        self.em_descanso = False
-        self.descanso_ate = 0
-    
-    def atualizar_score_dinamico(self):
-        if self.losses_seguidos >= 3: self.score_minimo = min(self.score_base+15, 70)
-        elif self.losses_seguidos >= 2: self.score_minimo = min(self.score_base+10, 65)
-        elif self.wins_seguidos >= 5: self.score_minimo = self.score_base
-        elif self.wins_seguidos >= 3: self.score_minimo = min(self.score_base+5, 60)
-        else: self.score_minimo = self.score_base
-    
-    def verificar_descanso(self):
-        if self.em_descanso:
-            if time.time() < self.descanso_ate:
-                return True, f"😴 Em descanso até {datetime.fromtimestamp(self.descanso_ate).strftime('%H:%M:%S')}"
-            else:
-                self.em_descanso = False
-        return False, ""
-    
-    def registrar_loss(self):
-        self.losses_seguidos += 1
-        self.wins_seguidos = 0
-        self.ultimo_loss_time = time.time()
-        if self.losses_seguidos >= 3: self.em_descanso = True; self.descanso_ate = time.time()+1800
-        elif self.losses_seguidos >= 2: self.em_descanso = True; self.descanso_ate = time.time()+600
-    
-    def registrar_win(self):
-        self.wins_seguidos += 1
-        self.losses_seguidos = 0
-        self.em_descanso = False
     
     def atualizar_stats(self, ativo, resultado):
         if ativo in self.stats_pares:
             self.stats_pares[ativo]['total'] += 1
-            if resultado == 'win': self.stats_pares[ativo]['wins'] += 1
-            else: self.stats_pares[ativo]['losses'] += 1
+            if resultado == 'win':
+                self.stats_pares[ativo]['wins'] += 1
+            else:
+                self.stats_pares[ativo]['losses'] += 1
             total = self.stats_pares[ativo]['total']
             wins = self.stats_pares[ativo]['wins']
             self.stats_pares[ativo]['taxa'] = round((wins/total)*100, 1) if total > 0 else 0
@@ -409,62 +378,6 @@ class CerebroVisual:
         for nome, velas in velas_dict.items():
             self.tendencias[nome] = self.analisar_tendencia_par(velas)
     
-    def detectar_lta_ltb(self, velas):
-        try:
-            if len(velas) < 20: return "NEUTRA", 0, 0, ""
-            lows = np.array([v['low'] for v in velas])
-            highs = np.array([v['high'] for v in velas])
-            fundos = []
-            topos = []
-            for i in range(2, len(lows)-2):
-                if lows[i] < lows[i-1] and lows[i] < lows[i-2] and lows[i] < lows[i+1] and lows[i] < lows[i+2]:
-                    fundos.append((i, lows[i]))
-            for i in range(2, len(highs)-2):
-                if highs[i] > highs[i-1] and highs[i] > highs[i-2] and highs[i] > highs[i+1] and highs[i] > highs[i+2]:
-                    topos.append((i, highs[i]))
-            lta_valida = ltb_valida = False
-            nivel_lta = nivel_ltb = 0
-            detalhes = ""
-            if len(fundos) >= 2:
-                f1, f2 = fundos[-2], fundos[-1]
-                if f2[1] > f1[1]:
-                    lta_valida = True
-                    idx_diff = f2[0] - f1[0]
-                    price_diff = f2[1] - f1[1]
-                    nivel_lta = f2[1] + (price_diff/idx_diff)*(len(velas)-f2[0])
-                    detalhes += f"LTA 📈 ({f1[1]:.5f}→{f2[1]:.5f}) "
-            if len(topos) >= 2:
-                t1, t2 = topos[-2], topos[-1]
-                if t2[1] < t1[1]:
-                    ltb_valida = True
-                    idx_diff = t2[0] - t1[0]
-                    price_diff = t2[1] - t1[1]
-                    nivel_ltb = t2[1] + (price_diff/idx_diff)*(len(velas)-t2[0])
-                    detalhes += f"LTB 📉 ({t1[1]:.5f}→{t2[1]:.5f}) "
-            if lta_valida and ltb_valida: return "DUPLA", nivel_lta, nivel_ltb, detalhes
-            elif lta_valida: return "LTA", nivel_lta, nivel_ltb, detalhes
-            elif ltb_valida: return "LTB", nivel_lta, nivel_ltb, detalhes
-            return "NEUTRA", 0, 0, ""
-        except: return "NEUTRA", 0, 0, ""
-    
-    def filtro_lta_ltb(self, velas, direcao):
-        tipo, nivel_lta, nivel_ltb, detalhes = self.detectar_lta_ltb(velas)
-        if tipo == "NEUTRA": return True, ""
-        preco_atual = velas[-1]['close']
-        if direcao == 'CALL':
-            if tipo == "LTA" or tipo == "DUPLA":
-                if preco_atual < nivel_lta*0.9995:
-                    return False, f"📈 Abaixo da LTA ({nivel_lta:.5f})"
-            if tipo == "LTB" and preco_atual < nivel_ltb*1.0005:
-                return False, f"📉 Abaixo da LTB ({nivel_ltb:.5f})"
-        if direcao == 'PUT':
-            if tipo == "LTB" or tipo == "DUPLA":
-                if preco_atual > nivel_ltb*1.0005:
-                    return False, f"📉 Acima da LTB ({nivel_ltb:.5f})"
-            if tipo == "LTA" and preco_atual > nivel_lta*0.9995:
-                return False, f"📈 Acima da LTA ({nivel_lta:.5f})"
-        return True, ""
-    
     def avaliacao_visual(self, velas, direcao):
         if len(velas) < 10: return 50, "Poucas velas"
         nota = 50
@@ -474,96 +387,69 @@ class CerebroVisual:
         ultimo_fundo = np.min(lows[-5:])
         ultimo_topo = np.max(highs[-5:])
         if direcao == 'CALL':
-            if lows[-1] > ultimo_fundo * 1.0002: nota += 10; detalhes.append("Fundo ascendente")
+            if lows[-1] > ultimo_fundo * 1.0002:
+                nota += 10
+                detalhes.append("Fundo ascendente")
         else:
-            if highs[-1] < ultimo_topo * 0.9998: nota += 10; detalhes.append("Topo descendente")
+            if highs[-1] < ultimo_topo * 0.9998:
+                nota += 10
+                detalhes.append("Topo descendente")
         corpo_atual = abs(velas[-1]['close'] - velas[-1]['open'])
         pavio_sup = velas[-1]['high'] - max(velas[-1]['close'], velas[-1]['open'])
         pavio_inf = min(velas[-1]['close'], velas[-1]['open']) - velas[-1]['low']
         corpo_anterior = abs(velas[-2]['close'] - velas[-2]['open'])
         if direcao == 'CALL' and pavio_inf > corpo_atual*2 and pavio_sup < corpo_atual*0.3:
-            nota += 15; detalhes.append("Martelo")
+            nota += 15
+            detalhes.append("Martelo")
         elif direcao == 'PUT' and pavio_sup > corpo_atual*2 and pavio_inf < corpo_atual*0.3:
-            nota += 15; detalhes.append("Estrela Cadente")
+            nota += 15
+            detalhes.append("Estrela Cadente")
         elif corpo_atual > corpo_anterior*1.5:
             if direcao == 'CALL' and velas[-1]['close'] > velas[-2]['open']:
-                nota += 15; detalhes.append("Engolfo de Alta")
+                nota += 15
+                detalhes.append("Engolfo de Alta")
             elif direcao == 'PUT' and velas[-1]['close'] < velas[-2]['open']:
-                nota += 15; detalhes.append("Engolfo de Baixa")
+                nota += 15
+                detalhes.append("Engolfo de Baixa")
         tendencia_visual = sum(1 for i in range(-4, 0) if velas[i]['close'] > velas[i-1]['close'])
-        if direcao == 'CALL' and tendencia_visual >= 3: nota += 10; detalhes.append("Força visual (3+ velas de alta)")
-        elif direcao == 'PUT' and tendencia_visual <= 1: nota += 10; detalhes.append("Força visual (3+ velas de baixa)")
-        if direcao == 'CALL' and pavio_sup < corpo_atual*0.2: nota += 5; detalhes.append("Sem rejeição superior")
-        elif direcao == 'PUT' and pavio_inf < corpo_atual*0.2: nota += 5; detalhes.append("Sem rejeição inferior")
-        tipo, _, _, det_tend = self.detectar_lta_ltb(velas)
-        if det_tend: detalhes.append(det_tend.strip())
-        nota_final = min(nota, 100)
-        return nota_final, ", ".join(detalhes) if detalhes else "Setup visual neutro"
-    
-    def filtro_volume(self, velas):
-        try:
-            if len(velas) < 10: return True, ""
-            volumes = [v['volume'] for v in velas[-10:]]
-            vol_atual = volumes[-1]
-            vol_medio = np.mean(volumes[:-1]) if len(volumes) > 1 else vol_atual
-            if vol_medio > 0 and vol_atual < vol_medio*1.1:
-                return False, f"📊 Volume baixo ({vol_atual:.0f} < {vol_medio*1.1:.0f})"
-            return True, ""
-        except: return True, ""
-    
-    def filtrar_correlacao(self, sinais_por_par):
-        bloqueados = set()
-        if 'EURUSD' in sinais_por_par and 'GBPUSD' in sinais_por_par:
-            sinal_eur = sinais_por_par['EURUSD']
-            sinal_gbp = sinais_por_par['GBPUSD']
-            if sinal_eur['direcao'] != sinal_gbp['direcao']:
-                bloqueados.add('EURUSD')
-                bloqueados.add('GBPUSD')
-        return bloqueados
-    
-    def filtro_zona_seguranca(self, velas):
-        try:
-            if len(velas) < 20: return True, ""
-            highs = np.array([v['high'] for v in velas])
-            lows = np.array([v['low'] for v in velas])
-            resistencia = np.max(highs[-20:])
-            suporte = np.min(lows[-20:])
-            preco_atual = velas[-1]['close']
-            dist_resistencia = abs(preco_atual-resistencia)/preco_atual
-            dist_suporte = abs(preco_atual-suporte)/preco_atual
-            if dist_resistencia < 0.0003 or dist_suporte < 0.0003:
-                return False, f"🛡️ Zona de congestão (S/R próximo: {suporte:.5f}/{resistencia:.5f})"
-            return True, ""
-        except: return True, ""
+        if direcao == 'CALL' and tendencia_visual >= 3:
+            nota += 10
+            detalhes.append("Força visual (3+ velas de alta)")
+        elif direcao == 'PUT' and tendencia_visual <= 1:
+            nota += 10
+            detalhes.append("Força visual (3+ velas de baixa)")
+        if direcao == 'CALL' and pavio_sup < corpo_atual*0.2:
+            nota += 5
+            detalhes.append("Sem rejeição superior")
+        elif direcao == 'PUT' and pavio_inf < corpo_atual*0.2:
+            nota += 5
+            detalhes.append("Sem rejeição inferior")
+        return min(nota, 100), ", ".join(detalhes) if detalhes else "Setup visual neutro"
     
     def pode_exibir_recusa(self, par, direcao):
         chave = f"{par}_{direcao}"
         agora = time.time()
-        if chave in self._ultima_exibicao_recusa and (agora-self._ultima_exibicao_recusa[chave]) < 300:
-            return False
+        if chave in self._ultima_exibicao_recusa:
+            if agora - self._ultima_exibicao_recusa[chave] < 300:
+                return False
         self._ultima_exibicao_recusa[chave] = agora
         return True
     
-    def avaliar(self, sinal, velas, sinais_por_par=None):
+    def avaliar(self, sinal, velas):
         direcao = sinal.get('direcao')
         ativo = sinal.get('ativo', '')
-        em_descanso, msg_descanso = self.verificar_descanso()
-        if em_descanso: return False, 0, [msg_descanso], 0, ""
-        self.atualizar_score_dinamico()
-        lta_ok, lta_msg = self.filtro_lta_ltb(velas, direcao)
-        if not lta_ok: return False, 0, [lta_msg], 0, ""
         pavio_ok, pavio_msg = self._filtro_pavio(velas, direcao)
-        if not pavio_ok: return False, 0, [pavio_msg], 0, ""
-        tendencia_ok, tendencia_msg = self._filtro_tendencia_turbo(velas, direcao)
+        if not pavio_ok:
+            return False, 0, [pavio_msg], 0, ""
+        tendencia_ok, tendencia_msg = self._filtro_tendencia(velas, direcao)
         if not tendencia_ok:
-            if self.pode_exibir_recusa(ativo, direcao): return False, 0, [tendencia_msg], 0, ""
-            else: return False, 0, ["__SILENCIADO__"], 0, ""
-        volume_ok, volume_msg = self.filtro_volume(velas)
-        if not volume_ok: return False, 0, [volume_msg], 0, ""
-        zona_ok, zona_msg = self.filtro_zona_seguranca(velas)
-        if not zona_ok: return False, 0, [zona_msg], 0, ""
+            if self.pode_exibir_recusa(ativo, direcao):
+                return False, 0, [tendencia_msg], 0, ""
+            else:
+                return False, 0, ["__SILENCIADO__"], 0, ""
         nota_visual, detalhes_visual = self.avaliacao_visual(velas, direcao)
-        if nota_visual < 45: return False, 0, [f"👁️ Gráfico ruim ({detalhes_visual})"], nota_visual, detalhes_visual
+        if nota_visual < 50:
+            return False, 0, [f"👁️ Gráfico ruim ({detalhes_visual})"], nota_visual, detalhes_visual
         score = 0
         motivos = []
         conf = sinal.get('confianca', 0)
@@ -573,11 +459,14 @@ class CerebroVisual:
         score += (est/5)*25
         if est >= 3: motivos.append(f"{est}/5 estratégias")
         vol = self.calcular_volatilidade(velas)
-        if 0.0001 < vol < 0.002: score += 20; motivos.append("Volatilidade ideal")
+        if 0.0001 < vol < 0.002:
+            score += 20
+            motivos.append("Volatilidade ideal")
         elif vol > 0: score += 10
         hora = datetime.now().hour
-        if 6 <= hora <= 23: score += 15
-        if 8 <= hora <= 17: motivos.append("Horário nobre")
+        if 6 <= hora <= 23:
+            score += 15
+            if 8 <= hora <= 17: motivos.append("Horário nobre")
         if len(self.historico) > 0 and np.mean(self.historico) > 70: score += 10
         score += (nota_visual/100)*15
         motivos.append(f"👁️ {detalhes_visual}")
@@ -586,8 +475,6 @@ class CerebroVisual:
     
     def registrar(self, resultado):
         self.historico.append(1 if resultado == 'win' else 0)
-        if resultado == 'win': self.registrar_win()
-        else: self.registrar_loss()
     
     def _filtro_pavio(self, velas, direcao):
         try:
@@ -597,14 +484,16 @@ class CerebroVisual:
             if corpo == 0: return True, ""
             if direcao == 'CALL':
                 ratio = (v['high'] - max(v['close'], v['open'])) / corpo
-                if ratio > self.max_pavio_ratio: return False, f"🕯️ Pavio superior grande"
+                if ratio > self.max_pavio_ratio:
+                    return False, f"🕯️ Pavio superior grande"
             else:
                 ratio = (min(v['close'], v['open']) - v['low']) / corpo
-                if ratio > self.max_pavio_ratio: return False, f"🕯️ Pavio inferior grande"
+                if ratio > self.max_pavio_ratio:
+                    return False, f"🕯️ Pavio inferior grande"
             return True, ""
         except: return True, ""
     
-    def _filtro_tendencia_turbo(self, velas, direcao):
+    def _filtro_tendencia(self, velas, direcao):
         try:
             if len(velas) < 20: return True, ""
             closes = np.array([v['close'] for v in velas])
@@ -615,10 +504,10 @@ class CerebroVisual:
                 for x in data[period:]: e = (x-e)*a + e
                 return e
             ema9, ema21 = ema(closes, 9), ema(closes, 21)
-            dif_percent = abs(ema9-ema21)/ema21
-            if dif_percent < 0.001: return True, ""
-            if direcao == 'CALL' and ema9 <= ema21: return False, f"📈 EMA9 < EMA21"
-            if direcao == 'PUT' and ema9 >= ema21: return False, f"📉 EMA9 > EMA21"
+            if direcao == 'CALL' and ema9 <= ema21:
+                return False, f"📈 EMA9 < EMA21"
+            if direcao == 'PUT' and ema9 >= ema21:
+                return False, f"📉 EMA9 > EMA21"
             return True, ""
         except: return True, ""
 
@@ -700,7 +589,6 @@ class Bot:
         self.ultimo_sinal_ativo = {}
         self.intervalo_minimo = 180
         self.sinais_recusados = 0
-        self.lta_ltb_info = {nome: "" for nome in ATIVOS_OTC}
     
     def pode_enviar(self, ativo):
         agora = time.time()
@@ -825,14 +713,14 @@ class Bot:
     
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA MODO TURBO...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA com Cérebro Visual...\n")
         if not self.iq.conectar():
             print(f"  ❌ Falha conexão!")
             return
         self.iq.atualizar()
         await self.catalogacao_inicial()
-        print(f"\n  ✅ QUANTUM IA TURBO INICIADA | ⚡ +Sinais | 🧠 Cérebro Visual | 🔄 1 GALE | 🇧🇷 Brasília\n")
-        self.tg.send(f"⚛️ *QUANTUM IA TURBO*\n📊 3 pares OTC\n⚡ +Sinais +Assertividade\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA INICIADA | 🧠 Cérebro Visual | 🔄 1 GALE | 👁️ Visão Gráfica | 🇧🇷 Brasília\n")
+        self.tg.send(f"⚛️ *QUANTUM IA + VISÃO GRÁFICA*\n📊 3 pares OTC\n👁️ Análise Visual de Gráfico\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         while True:
             try:
                 agora = datetime.now()
@@ -842,30 +730,19 @@ class Bot:
                         self.cerebro.atualizar_tendencias(self.iq.velas)
                     except:
                         self.iq.ok = False
-                    for nome in ATIVOS_OTC:
-                        velas = self.iq.velas[nome]
-                        if len(velas) >= 20:
-                            tipo, _, _, det = self.cerebro.detectar_lta_ltb(velas)
-                            self.lta_ltb_info[nome] = f"{tipo}" if tipo != "NEUTRA" else ""
                 if not self.op:
                     try:
                         bloqueados = [a for a in ATIVOS_OTC if not self.pode_enviar(a)]
-                        sinais_por_par = {}
-                        for nome in ATIVOS_OTC:
-                            if nome not in bloqueados and len(self.iq.velas[nome]) >= 30:
-                                d, cf, num = self.m.analisar_completo(self.iq.velas[nome])
-                                if d: sinais_por_par[nome] = {'direcao': d, 'confianca': cf, 'estrategias': num}
-                        pares_bloqueados_corr = self.cerebro.filtrar_correlacao(sinais_por_par)
-                        sinal = self.m.melhor_par(self.iq.velas, bloqueados, self.cerebro.stats_pares, pares_bloqueados_corr)
+                        sinal = self.m.melhor_par(self.iq.velas, bloqueados, self.cerebro.stats_pares)
                         if sinal and time.time() - self.ult > 25:
-                            aprovado, score, motivos, nota_visual, detalhes_visual = self.cerebro.avaliar(sinal, self.iq.velas[sinal['ativo']], sinais_por_par)
+                            aprovado, score, motivos, nota_visual, detalhes_visual = self.cerebro.avaliar(sinal, self.iq.velas[sinal['ativo']])
                             if aprovado:
                                 self.op = True
                                 self.sinais += 1
                                 self.registrar_envio(sinal['ativo'])
                                 sinal['score_ia'] = score
                                 he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
-                                print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠{sinal.get('estrategias',0)}/5 | 🛡️{score:.0f}/{self.cerebro.score_minimo} | 👁️{nota_visual:.0f}/100 | ⏰ {he}")
+                                print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠{sinal.get('estrategias',0)}/5 | 🛡️{score:.0f}/100 | 👁️{nota_visual:.0f}/100 ({detalhes_visual}) | ⏰ {he}")
                                 self.tg.send(self.fmt_sinal(sinal))
                                 self.ult = time.time()
                                 asyncio.create_task(self.corrigir(sinal))
@@ -873,7 +750,7 @@ class Bot:
                                 motivos_str = ', '.join([m for m in motivos if m != "__SILENCIADO__"])
                                 if motivos_str:
                                     self.sinais_recusados += 1
-                                    print(f"  {C.Y}🧠 Sinal recusado ({sinal['ativo']}-OTC {sinal['direcao']}): {motivos_str} (Score: {score:.0f}/{self.cerebro.score_minimo}){C.E}")
+                                    print(f"  {C.Y}🧠 Sinal recusado ({sinal['ativo']}-OTC {sinal['direcao']}): {motivos_str} (Score: {score:.0f}/100){C.E}")
                     except Exception as e:
                         print(f"  {C.Y}⚠️ {str(e)[:30]}{C.E}")
                 if agora.second in [0, 30]:
@@ -885,13 +762,9 @@ class Bot:
                         info = f" | 🔒 {bloqueados_str}" if bloqueados_str else ""
                         tendencias_str = " | ".join([f"{nome}:{self.cerebro.tendencias[nome]}" for nome in ATIVOS_OTC])
                         stats_str = " | ".join([f"{nome}:{self.cerebro.stats_pares[nome]['taxa']}%" for nome in ATIVOS_OTC])
-                        lta_str = " | ".join([f"{nome}:{self.lta_ltb_info[nome]}" if self.lta_ltb_info[nome] else f"{nome}:--" for nome in ATIVOS_OTC])
-                        score_str = f"🎯Score: {self.cerebro.score_minimo}"
-                        descanso_str = "😴" if self.cerebro.em_descanso else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🏆 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 🛡️{self.sinais_recusados} recusados {descanso_str}{info}")
-                        print(f"{C.GOLD}│{C.E} 📈 {tendencias_str} | {score_str}")
-                        print(f"{C.GOLD}│{C.E} 📐 {lta_str}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🏆 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 🛡️{self.sinais_recusados} recusados{info}")
+                        print(f"{C.GOLD}│{C.E} 📈 {tendencias_str}")
                         print(f"{C.GOLD}│{C.E} 📊 {stats_str}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except: pass
