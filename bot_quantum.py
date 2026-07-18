@@ -5,7 +5,7 @@
 ║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║
 ║   👁️ Visão Gráfica | 📈 LTA/LTB           ║
 ║   ⚡ MODO TURBO: +Sinais +Assertividade    ║
-║   💱 8 Pares OTC                          ║
+║   💱 4 Pares OTC                          ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -31,7 +31,7 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   ⚡ MODO TURBO | 💱 8 Pares OTC          ║")
+    print(f"║   ⚡ MODO TURBO | 💱 4 Pares OTC          ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 # ═══════════════════════════════════════════
@@ -78,17 +78,13 @@ SENHA = cfg['senha']
 from iqoptionapi.stable_api import IQ_Option
 
 # ═══════════════════════════════════════════
-# 8 PARES OTC
+# 4 PARES OTC
 # ═══════════════════════════════════════════
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
     "GBPUSD": "GBPUSD-OTC",
     "EURGBP": "EURGBP-OTC",
-    "USDJPY": "USDJPY-OTC",
-    "USDCHF": "USDCHF-OTC",
-    "NZDUSD": "NZDUSD-OTC",
-    "EURJPY": "EURJPY-OTC",
-    "GBPJPY": "GBPJPY-OTC"
+    "EURJPY": "EURJPY-OTC"
 }
 
 class Placar:
@@ -678,11 +674,11 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA MODO TURBO com 8 Pares...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA MODO TURBO com 4 Pares...\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar();await self.catalogacao_inicial()
-        print(f"\n  ✅ QUANTUM IA TURBO INICIADA | ⚡ 8 Pares | 🧠 Cérebro Visual | 🔄 1 GALE\n")
-        self.tg.send(f"⚛️ *QUANTUM IA TURBO*\n📊 8 pares OTC\n⚡ +Sinais +Assertividade\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA TURBO INICIADA | ⚡ 4 Pares | 🧠 Cérebro Visual | 🔄 1 GALE\n")
+        self.tg.send(f"⚛️ *QUANTUM IA TURBO*\n📊 4 pares OTC\n⚡ +Sinais +Assertividade\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         while True:
             try:
                 agora=datetime.now()
