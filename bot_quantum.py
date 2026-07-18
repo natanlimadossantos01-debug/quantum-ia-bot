@@ -5,7 +5,7 @@
 ║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║
 ║   👁️ Visão Gráfica | 📈 LTA/LTB           ║
 ║   ⚡ MODO TURBO: +Sinais +Assertividade    ║
-║   💱 4 Pares OTC                          ║
+║   ☁️ Nuvem Ready | 🇧🇷 Brasília           ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -31,61 +31,20 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   ⚡ MODO TURBO | 💱 4 Pares OTC          ║")
+    print(f"║   ⚡ MODO TURBO | 🇧🇷 Brasília           ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 # ═══════════════════════════════════════════
-# ✅ CONFIGURAÇÃO VIA VARIÁVEIS DE AMBIENTE (RAILWAY)
+# ✅ CONFIGURAÇÃO DIRETA (NUVEM - sem input!)
 # ═══════════════════════════════════════════
-def carregar_config():
-    # Primeiro tenta variáveis de ambiente (Railway)
-    if all(k in os.environ for k in ['TELEGRAM_TOKEN', 'CHAT_ID', 'IQ_EMAIL', 'IQ_PASSWORD']):
-        return {
-            "token": os.environ['TELEGRAM_TOKEN'],
-            "chat": os.environ['CHAT_ID'],
-            "email": os.environ['IQ_EMAIL'],
-            "senha": os.environ['IQ_PASSWORD']
-        }
-    
-    # Fallback para arquivo de configuração
-    config_file = "config_quantum.json"
-    if Path(config_file).exists():
-        with open(config_file) as f: 
-            cfg = json.load(f)
-        if all(k in cfg for k in ['token', 'chat', 'email', 'senha']):
-            return cfg
-    
-    # Se não encontrou, solicita entrada interativa
-    banner()
-    print(f"\n{C.Y}⚠️  Configure as credenciais:{C.E}\n")
-    cfg = {
-        "token": input(f"{C.G}Token Telegram: {C.E}").strip(),
-        "chat": input(f"{C.G}Chat ID: {C.E}").strip(),
-        "email": input(f"{C.G}Email IQ Option: {C.E}").strip(),
-        "senha": input(f"{C.G}Senha IQ Option: {C.E}").strip()
-    }
-    with open(config_file, 'w') as f: 
-        json.dump(cfg, f, indent=2)
-    print(f"\n{C.G}✅ Configuração salva em {config_file}{C.E}\n")
-    return cfg
-
-cfg = carregar_config()
-TOKEN = cfg['token']
-CHAT = cfg['chat']
-EMAIL = cfg['email']
-SENHA = cfg['senha']
+TOKEN = "6617259218:AAEXwdpK_LtGjkppXFdWdSYsX7MLHP8S_nA"
+CHAT  = "-1004375564920"
+EMAIL = "natanbinario810@gmail.com"
+SENHA = "natlima11"
 
 from iqoptionapi.stable_api import IQ_Option
 
-# ═══════════════════════════════════════════
-# 4 PARES OTC
-# ═══════════════════════════════════════════
-ATIVOS_OTC = {
-    "EURUSD": "EURUSD-OTC",
-    "GBPUSD": "GBPUSD-OTC",
-    "EURGBP": "EURGBP-OTC",
-    "EURJPY": "EURJPY-OTC"
-}
+ATIVOS_OTC={"EURUSD":"EURUSD-OTC","GBPUSD":"GBPUSD-OTC","EURGBP":"EURGBP-OTC"}
 
 class Placar:
     def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20)
@@ -674,11 +633,11 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA MODO TURBO com 4 Pares...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA MODO TURBO...\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar();await self.catalogacao_inicial()
-        print(f"\n  ✅ QUANTUM IA TURBO INICIADA | ⚡ 4 Pares | 🧠 Cérebro Visual | 🔄 1 GALE\n")
-        self.tg.send(f"⚛️ *QUANTUM IA TURBO*\n📊 4 pares OTC\n⚡ +Sinais +Assertividade\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA TURBO INICIADA | ⚡ +Sinais | 🧠 Cérebro Visual | 🔄 1 GALE | 🇧🇷 Brasília\n")
+        self.tg.send(f"⚛️ *QUANTUM IA TURBO*\n📊 3 pares OTC\n⚡ +Sinais +Assertividade\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         while True:
             try:
                 agora=datetime.now()
