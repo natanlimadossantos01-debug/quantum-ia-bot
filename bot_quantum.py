@@ -53,7 +53,19 @@ SENHA = cfg['senha']
 
 from iqoptionapi.stable_api import IQ_Option
 
-ATIVOS_OTC = {"EURUSD":"EURUSD-OTC", "GBPUSD":"GBPUSD-OTC", "EURGBP":"EURGBP-OTC"}
+# ═══════════════════════════════════════════
+# 🔄 ATIVOS OTC (8 pares)
+# ═══════════════════════════════════════════
+ATIVOS_OTC = {
+    "EURUSD": "EURUSD-OTC",
+    "GBPUSD": "GBPUSD-OTC",
+    "EURGBP": "EURGBP-OTC",
+    "USDJPY": "USDJPY-OTC",
+    "USDCHF": "USDCHF-OTC",
+    "NZDUSD": "NZDUSD-OTC",
+    "EURJPY": "EURJPY-OTC",
+    "GBPJPY": "GBPJPY-OTC"
+}
 
 class Placar:
     def __init__(self):
@@ -720,7 +732,7 @@ class Bot:
         self.iq.atualizar()
         await self.catalogacao_inicial()
         print(f"\n  ✅ QUANTUM IA INICIADA | 🧠 Cérebro Visual | 🔄 1 GALE | 👁️ Visão Gráfica | 🇧🇷 Brasília\n")
-        self.tg.send(f"⚛️ *QUANTUM IA + VISÃO GRÁFICA*\n📊 3 pares OTC\n👁️ Análise Visual de Gráfico\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        self.tg.send(f"⚛️ *QUANTUM IA + VISÃO GRÁFICA*\n📊 {len(ATIVOS_OTC)} pares OTC\n👁️ Análise Visual de Gráfico\n🇧🇷 Horário de Brasília\n⏰ {datetime.now().strftime('%H:%M:%S')}")
         while True:
             try:
                 agora = datetime.now()
