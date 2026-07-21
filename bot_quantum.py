@@ -224,15 +224,16 @@ class E5_Tsunami:
         except: return None, 0
 
 # ═══════════════════════════════════════════
-# 👁️ OLHOS NAS VELAS
+# 👁️ OLHOS NAS VELAS (EXIGÊNCIA REDUZIDA)
 # ═══════════════════════════════════════════
 class OlhosNasVelas:
     def __init__(self):
-        self.max_pavio_ratio = 0.6
+        self.max_pavio_ratio = 0.7
     
     def analisar(self, velas, direcao):
-        if len(velas) < 5: return 50, "Poucas velas"
-        nota = 50; detalhes = []
+        if len(velas) < 3: return 60, "Poucas velas"
+        nota = 60
+        detalhes = []
         try:
             v = velas[-1]; v1 = velas[-2]
             corpo = abs(v['close'] - v['open'])
@@ -241,50 +242,50 @@ class OlhosNasVelas:
             pavio_inf = min(v['close'], v['open']) - v['low']
             
             if direcao == 'CALL':
-                if pavio_inf > corpo * 2 and pavio_sup < corpo * 0.3:
+                if pavio_inf > corpo * 1.5 and pavio_sup < corpo * 0.5:
                     nota += 20; detalhes.append("Martelo")
                 elif (v['close'] > v['open'] and v1['close'] < v1['open'] and
-                      v['close'] > v1['open'] and corpo > abs(v1['close']-v1['open'])*1.3):
+                      v['close'] > v1['open'] and corpo > abs(v1['close']-v1['open'])*1.1):
                     nota += 18; detalhes.append("Engolfo Alta")
-                elif corpo > range_total * 0.6 and v['close'] > v['open']:
+                elif corpo > range_total * 0.5 and v['close'] > v['open']:
                     nota += 12; detalhes.append("Vela forte")
             elif direcao == 'PUT':
-                if pavio_sup > corpo * 2 and pavio_inf < corpo * 0.3:
+                if pavio_sup > corpo * 1.5 and pavio_inf < corpo * 0.5:
                     nota += 20; detalhes.append("Estrela Cadente")
                 elif (v['close'] < v['open'] and v1['close'] > v1['open'] and
-                      v['close'] < v1['open'] and corpo > abs(v1['close']-v1['open'])*1.3):
+                      v['close'] < v1['open'] and corpo > abs(v1['close']-v1['open'])*1.1):
                     nota += 18; detalhes.append("Engolfo Baixa")
-                elif corpo > range_total * 0.6 and v['close'] < v['open']:
+                elif corpo > range_total * 0.5 and v['close'] < v['open']:
                     nota += 12; detalhes.append("Vela forte")
             
             precos = [x['close'] for x in velas]
-            altas = sum(1 for i in range(-5, 0) if precos[i] > precos[i-1])
-            if direcao == 'CALL' and altas >= 3: nota += 10
+            altas = sum(1 for i in range(-4, 0) if i >= -len(precos)+1 and precos[i] > precos[i-1])
+            if direcao == 'CALL' and altas >= 2: nota += 10
             elif direcao == 'PUT' and altas <= 2: nota += 10
             
-            if direcao == 'CALL' and pavio_sup < corpo * 0.3: nota += 8
-            elif direcao == 'PUT' and pavio_inf < corpo * 0.3: nota += 8
+            if direcao == 'CALL' and pavio_sup < corpo * 0.5: nota += 8
+            elif direcao == 'PUT' and pavio_inf < corpo * 0.5: nota += 8
             
-            if direcao == 'CALL' and pavio_sup > corpo * 0.8: nota -= 15
-            elif direcao == 'PUT' and pavio_inf > corpo * 0.8: nota -= 15
+            if direcao == 'CALL' and pavio_sup > corpo * 1.0: nota -= 10
+            elif direcao == 'PUT' and pavio_inf > corpo * 1.0: nota -= 10
         except: pass
         
         return min(max(nota, 0), 100), ", ".join(detalhes) if detalhes else "Setup neutro"
     
     def fluxo_visual(self, velas):
-        if len(velas) < 10: return 'NEUTRO', 0
+        if len(velas) < 8: return 'NEUTRO', 0
         precos = [v['close'] for v in velas]
-        altas = sum(1 for i in range(-10, 0) if precos[i] > precos[i-1])
-        baixas = 10 - altas
-        corpos = [v['close'] - v['open'] for v in velas[-5:]]
+        altas = sum(1 for i in range(-8, 0) if i >= -len(precos)+1 and precos[i] > precos[i-1])
+        baixas = 8 - altas
+        corpos = [v['close'] - v['open'] for v in velas[-4:]]
         soma_corpos = sum(corpos)
-        forca = max(altas, baixas) / 10
-        if altas >= 6 and soma_corpos > 0: return 'CALL', forca
-        if baixas >= 6 and soma_corpos < 0: return 'PUT', forca
+        forca = max(altas, baixas) / 8
+        if altas >= 5 and soma_corpos > 0: return 'CALL', forca
+        if baixas >= 5 and soma_corpos < 0: return 'PUT', forca
         return 'NEUTRO', forca
 
 # ═══════════════════════════════════════════
-# 🧠 CÉREBRO IA TRADER
+# 🧠 CÉREBRO IA TRADER (EXIGÊNCIA REDUZIDA)
 # ═══════════════════════════════════════════
 class CerebroIA:
     def __init__(self):
@@ -292,7 +293,8 @@ class CerebroIA:
         self.pesos = {'mortalha': 1.0, 'formiga': 1.0, 'fortaleza': 1.0, 'raio_negro': 1.0, 'tsunami': 1.0}
         self.historico_est = {n: {'wins': 0, 'total': 0} for n in self.pesos}
         self.ops_totais = 0; self.ops_vencidas = 0
-        self.score_minimo = 58; self.modo_agressivo = True
+        self.score_minimo = 48
+        self.modo_agressivo = True
     
     def aprender(self, detalhes, resultado):
         self.ops_totais += 1
@@ -305,28 +307,28 @@ class CerebroIA:
                 if t >= 3: self.pesos[nome] = 0.5 + (w / t)
         if self.ops_totais >= 10:
             taxa = self.ops_vencidas / self.ops_totais
-            self.score_minimo = 55 if taxa > 0.90 else (62 if taxa < 0.75 else 58)
+            self.score_minimo = 45 if taxa > 0.90 else (55 if taxa < 0.75 else 48)
             self.modo_agressivo = taxa > 0.85
     
     def avaliar(self, sinal, velas):
         direcao = sinal.get('direcao'); ativo = sinal.get('ativo', '')
         nota_visual, motivo_visual = self.olhos.analisar(velas, direcao)
-        if nota_visual < 40: return False, 0, [f"👁️ Visual ruim ({nota_visual})"]
+        if nota_visual < 25: return False, 0, [f"👁️ Visual ruim ({nota_visual})"]
         
         fluxo, forca = self.olhos.fluxo_visual(velas)
-        if fluxo != 'NEUTRO' and fluxo != direcao and forca >= 0.65:
+        if fluxo != 'NEUTRO' and fluxo != direcao and forca >= 0.80:
             return False, 0, [f"🌊 Contra fluxo {fluxo}"]
         
         score = 0; motivos = []
         conf = sinal.get('confianca', 0); score += (conf / 100) * 30
         est = sinal.get('estrategias', 0); score += (est / 5) * 20
-        if est >= 4: motivos.append(f"{est}/5 estratégias")
+        if est >= 3: motivos.append(f"{est}/5 estratégias")
         score += (nota_visual / 100) * 20; motivos.append(f"👁️ {motivo_visual}")
-        if fluxo == direcao: score += int(forca * 12)
+        if fluxo == direcao: score += int(forca * 15)
         hora = datetime.now(FUSO_BR).hour
-        if 6 <= hora <= 23: score += 8
-        if self.ops_totais >= 5 and (self.ops_vencidas/max(self.ops_totais,1)) > 0.80: score += 5
-        if est >= 5: score += 5
+        if 6 <= hora <= 23: score += 10
+        if self.ops_totais >= 5 and (self.ops_vencidas/max(self.ops_totais,1)) > 0.75: score += 5
+        if est >= 4: score += 5
         
         aprovado = score >= self.score_minimo
         return aprovado, score, motivos
@@ -599,7 +601,7 @@ class Bot:
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}")
                         print(f"{C.GOLD}│{C.E} 📊 {stats_str}")
-                        print(f"{C.GOLD}│{C.E} 🧠 Score mín: {self.m.cerebro.score_minimo} | {'⚡Agressivo' if self.m.cerebro.modo_agressivo else '🛡️Defensivo'}")
+                        print(f"{C.GOLD}│{C.E} 🧠 Score mín: {self.m.cerebro.score_minimo} | {'⚡Agr' if self.m.cerebro.modo_agressivo else '🛡️Def'}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────────┘{C.E}")
                     except: pass
                 await asyncio.sleep(3)
