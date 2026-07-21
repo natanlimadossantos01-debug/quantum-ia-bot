@@ -2,10 +2,10 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader   ║
-║   🕯️ Pavio | 📈 Tendência | 👁️ Visão      ║
-║   🌊 Fluxo ALINHADO (NEUTRO BLOQUEADO)     ║
-║   📊 Placar Diário Automático | ☁️ Cloud   ║
+║   🔄 Gale 1 | 5 Estratégias Unidas         ║
+║   🏆 3/5 Confirmam = Entra                 ║
+║   📊 Catálogo Inteligente de Pares         ║
+║   📊 Placar Diário | ☁️ Cloud Ready        ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -24,18 +24,14 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   🔄 Gale 1 | 🧠 Cérebro Visual + Trader  ║")
-    print(f"║   👁️ Visão | 🌊 Fluxo ALINHADO | ☁️ Cloud ║")
+    print(f"║   🔄 Gale 1 | 5 Estratégias Unidas         ║")
+    print(f"║   🏆 3/5 Confirmam = Entra                 ║")
+    print(f"║   📊 Catálogo Inteligente de Pares         ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE = "config_quantum.json"
 
 def carregar_config():
-    """☁️ Cloud: variáveis de ambiente | 💻 Local: arquivo JSON"""
-    
-    # ═══════════════════════════════════════
-    # ☁️ MODO CLOUD: Variáveis de Ambiente
-    # ═══════════════════════════════════════
     cloud_token = os.environ.get('TELEGRAM_TOKEN')
     cloud_chat = os.environ.get('TELEGRAM_CHAT_ID')
     cloud_email = os.environ.get('IQ_EMAIL')
@@ -43,31 +39,14 @@ def carregar_config():
     
     if cloud_token and cloud_chat and cloud_email and cloud_senha:
         banner()
-        print(f"\n{C.G}✅ Modo CLOUD detectado!{C.E}")
-        print(f"  ☁️ Usando variáveis de ambiente\n")
-        return {
-            "token": cloud_token,
-            "chat": cloud_chat,
-            "email": cloud_email,
-            "senha": cloud_senha
-        }
+        print(f"\n{C.G}✅ Modo CLOUD detectado!{C.E}\n")
+        return {"token": cloud_token, "chat": cloud_chat, "email": cloud_email, "senha": cloud_senha}
     
-    # ═══════════════════════════════════════
-    # 💻 MODO LOCAL: Arquivo JSON
-    # ═══════════════════════════════════════
     if Path(CONFIG_FILE).exists():
-        with open(CONFIG_FILE) as f:
-            cfg = json.load(f)
-        if 'token' not in cfg:
-            Path(CONFIG_FILE).unlink()
-            return carregar_config()
-        banner()
-        print(f"\n{C.G}✅ Config carregada do arquivo!{C.E}\n")
-        return cfg
+        with open(CONFIG_FILE) as f: cfg = json.load(f)
+        if 'token' not in cfg: Path(CONFIG_FILE).unlink(); return carregar_config()
+        banner(); print(f"\n{C.G}✅ Config carregada!{C.E}\n"); return cfg
     
-    # ═══════════════════════════════════════
-    # 🆕 PRIMEIRA VEZ: Input manual
-    # ═══════════════════════════════════════
     banner()
     try:
         cfg = {
@@ -77,30 +56,19 @@ def carregar_config():
             "senha": input(f"{C.G}Senha IQ: {C.E}").strip()
         }
     except (EOFError, KeyboardInterrupt):
-        print(f"\n{C.R}❌ ERRO: Sem config e sem variáveis de ambiente!{C.E}")
-        print(f"{C.Y}☁️ Configure as variáveis:{C.E}")
-        print(f"  TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, IQ_EMAIL, IQ_SENHA")
+        print(f"\n{C.R}❌ Configure as variáveis de ambiente!{C.E}")
         sys.exit(1)
     
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(cfg, f, indent=2)
-    banner()
-    print(f"\n{C.G}✅ Salvo!{C.E}\n")
-    return cfg
+    with open(CONFIG_FILE, 'w') as f: json.dump(cfg, f, indent=2)
+    banner(); print(f"\n{C.G}✅ Salvo!{C.E}\n"); return cfg
 
 cfg = carregar_config()
-TOKEN = cfg['token']
-CHAT = cfg['chat']
-EMAIL = cfg['email']
-SENHA = cfg['senha']
+TOKEN = cfg['token']; CHAT = cfg['chat']; EMAIL = cfg['email']; SENHA = cfg['senha']
 
 from iqoptionapi.stable_api import IQ_Option
 
 ATIVOS_OTC = {"EURUSD": "EURUSD-OTC", "GBPUSD": "GBPUSD-OTC", "EURGBP": "EURGBP-OTC"}
 
-# ═══════════════════════════════════════════
-# PLACAR
-# ═══════════════════════════════════════════
 class Placar:
     def __init__(self): self.w = 0; self.l = 0; self.g1 = 0; self.s = deque(maxlen=20)
     def win(self, g=0):
@@ -110,9 +78,6 @@ class Placar:
     def loss(self): self.l += 1; self.s.append('🔴'); return "❌ LOSS"
     def zerar(self): self.w = 0; self.l = 0; self.g1 = 0; self.s.clear()
 
-# ═══════════════════════════════════════════
-# TELEGRAM
-# ═══════════════════════════════════════════
 class Telegram:
     def __init__(self, t, c): self.u = f"https://api.telegram.org/bot{t}"; self.c = c
     def send(self, txt):
@@ -120,9 +85,11 @@ class Telegram:
         except: pass
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS (SIMPLIFICADAS E ROBUSTAS)
+# 5 ESTRATÉGIAS
 # ═══════════════════════════════════════════
-class Mortalha:
+
+class E1_Mortalha:
+    """💀 SMA(1)-SMA(34) + WMA(4)"""
     def sma(self, d, p):
         try:
             if len(d) >= p: return sum(d[-p:]) / p
@@ -147,7 +114,8 @@ class Mortalha:
             return None, 0
         except: return None, 0
 
-class Formiga:
+class E2_Formiga:
+    """🐜 EMA(5,10) + CCI(7) + OBV(5)"""
     def ema(self, p, pe):
         try:
             if len(p) < pe: return sum(p) / len(p) if p else 0
@@ -155,21 +123,37 @@ class Formiga:
         except: return 0
     def analisar(self, v):
         try:
-            if len(v) < 12: return None, 0
+            if len(v) < 15: return None, 0
             precos = np.array([x['close'] for x in v])
+            highs = np.array([x['high'] for x in v])
+            lows = np.array([x['low'] for x in v])
             ema5 = self.ema(precos, 5); ema10 = self.ema(precos, 10)
             dif = ((ema5 - ema10) / ema10) * 100 if ema10 > 0 else 0
+            tp = [(h+l+c)/3 for h, l, c in zip(highs, lows, precos)]
+            mtp = np.mean(tp[-7:]) if len(tp) >= 7 else np.mean(tp)
+            desv = np.mean([abs(t-mtp) for t in tp[-7:]]) if len(tp) >= 7 else 1
+            cci = (tp[-1] - mtp) / (0.015 * desv) if desv > 0 else 0
+            obv = sum(v[i]['volume'] if precos[i] > precos[i-1] else -v[i]['volume'] for i in range(-min(5, len(v)-1), 0))
             sc = 0; sp = 0
             if dif > 0.02: sc += 3
             elif dif > 0.005: sc += 1
             elif dif < -0.02: sp += 3
             elif dif < -0.005: sp += 1
-            if sc >= 2 and sc > sp: return 'CALL', min(50 + sc * 4, 85)
-            if sp >= 2 and sp > sc: return 'PUT', min(50 + sp * 4, 85)
+            if cci < -100: sc += 3
+            elif cci < -60: sc += 2
+            elif cci > 100: sp += 3
+            elif cci > 60: sp += 2
+            if obv > 200: sc += 2
+            elif obv > 50: sc += 1
+            elif obv < -200: sp += 2
+            elif obv < -50: sp += 1
+            if sc >= 3 and sc > sp: return 'CALL', min(50 + sc * 4, 88)
+            if sp >= 3 and sp > sc: return 'PUT', min(50 + sp * 4, 88)
             return None, 0
         except: return None, 0
 
-class Fortaleza:
+class E3_Fortaleza:
+    """🏰 RSI(7) + Bollinger(10,2)"""
     def rsi(self, p, pe=7):
         try:
             if len(p) < pe+1: return 50
@@ -198,7 +182,8 @@ class Fortaleza:
             return None, 0
         except: return None, 0
 
-class RaioNegro:
+class E4_RaioNegro:
+    """⚡ MACD(5,13) + Momentum(3)"""
     def analisar(self, v):
         try:
             if len(v) < 12: return None, 0
@@ -207,6 +192,8 @@ class RaioNegro:
             ema13 = np.mean(precos[-13:]) if len(precos) >= 13 else ema5
             macd = ema5 - ema13; sinal = macd * 0.5
             mom = precos[-1] - precos[-3] if len(precos) >= 3 else 0
+            altas = sum(1 for i in range(-min(4, len(v)-1), 0) if precos[i] > precos[i-1])
+            forca = (altas / max(4, 1)) * 100
             sc = 0; sp = 0
             if macd > sinal and macd > 0: sc += 3
             elif macd > sinal: sc += 1
@@ -216,12 +203,17 @@ class RaioNegro:
             elif mom > 0: sc += 1
             elif mom < -0.00003: sp += 3
             elif mom < 0: sp += 1
+            if forca >= 50: sc += 2
+            elif forca >= 30: sc += 1
+            elif forca <= 30: sp += 2
+            elif forca <= 50: sp += 1
             if sc >= 2 and sc > sp: return 'CALL', min(48 + sc * 4, 85)
             if sp >= 2 and sp > sc: return 'PUT', min(48 + sp * 4, 85)
             return None, 0
         except: return None, 0
 
-class Tsunami:
+class E5_Tsunami:
+    """🌊 Força de Tendência"""
     def analisar(self, v):
         try:
             if len(v) < 12: return None, 0
@@ -236,177 +228,94 @@ class Tsunami:
         except: return None, 0
 
 # ═══════════════════════════════════════════
-# QUANTUM IA
+# ⚛️ QUANTUM IA - VOTAÇÃO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
-        self.mortalha = Mortalha()
-        self.formiga = Formiga()
-        self.fortaleza = Fortaleza()
-        self.raio_negro = RaioNegro()
-        self.tsunami = Tsunami()
-        self.min_estrategias = 2
-
-    def analisar_completo(self, v):
-        try:
-            if len(v) < 30: return None, 0, 0
-            resultados = []
-            votos = {'CALL': 0, 'PUT': 0}
-            confiancas = {'CALL': [], 'PUT': []}
-            estrategias = [
-                ('mortalha', self.mortalha), ('formiga', self.formiga),
-                ('fortaleza', self.fortaleza), ('raio_negro', self.raio_negro),
-                ('tsunami', self.tsunami)
-            ]
-            for nome, est in estrategias:
-                try:
-                    d, c = est.analisar(v)
-                    if d:
-                        resultados.append((nome, d, c))
-                        votos[d] += 1
-                        confiancas[d].append(c)
-                except: pass
-            total = len(resultados)
-            if total < self.min_estrategias: return None, 0, total
-            if votos['CALL'] >= self.min_estrategias and votos['CALL'] > votos['PUT']:
-                conf = np.mean(confiancas['CALL'])
-                return 'CALL', min(conf + (total-2)*3, 95), total
-            if votos['PUT'] >= self.min_estrategias and votos['PUT'] > votos['CALL']:
-                conf = np.mean(confiancas['PUT'])
-                return 'PUT', min(conf + (total-2)*3, 95), total
-            return None, 0, total
-        except: return None, 0, 0
-
+        self.e1 = E1_Mortalha()
+        self.e2 = E2_Formiga()
+        self.e3 = E3_Fortaleza()
+        self.e4 = E4_RaioNegro()
+        self.e5 = E5_Tsunami()
+        self.min_confirmacoes = 3
+        
+    def analisar(self, v):
+        if len(v) < 30: return None, 0, 0, {}
+        
+        votos = {'CALL': 0, 'PUT': 0}
+        confiancas = {'CALL': [], 'PUT': []}
+        detalhes = {}
+        
+        estrategias = [
+            ('💀 Mortalha', self.e1),
+            ('🐜 Formiga', self.e2),
+            ('🏰 Fortaleza', self.e3),
+            ('⚡ Raio Negro', self.e4),
+            ('🌊 Tsunami', self.e5)
+        ]
+        
+        for nome, est in estrategias:
+            try:
+                d, c = est.analisar(v)
+                if d:
+                    votos[d] += 1
+                    confiancas[d].append(c)
+                    detalhes[nome] = f"{d} {c:.0f}%"
+                else:
+                    detalhes[nome] = "⏸️"
+            except:
+                detalhes[nome] = "❌"
+        
+        total_call = votos['CALL']
+        total_put = votos['PUT']
+        total_votantes = total_call + total_put
+        
+        if total_call >= self.min_confirmacoes and total_call > total_put:
+            conf = np.mean(confiancas['CALL'])
+            bonus = (total_call - 2) * 3
+            return 'CALL', min(conf + bonus, 95), total_votantes, detalhes
+        
+        if total_put >= self.min_confirmacoes and total_put > total_call:
+            conf = np.mean(confiancas['PUT'])
+            bonus = (total_put - 2) * 3
+            return 'PUT', min(conf + bonus, 95), total_votantes, detalhes
+        
+        return None, 0, total_votantes, detalhes
+    
     def melhor_par(self, velas_dict, bloqueados, stats_pares):
-        try:
-            melhor = None; melhor_score = 0
-            for nome, velas in velas_dict.items():
-                if nome in bloqueados: continue
-                if nome in stats_pares and stats_pares[nome]['total'] >= 5:
-                    if stats_pares[nome]['taxa'] < 50: continue
-                if len(velas) >= 30:
-                    d, cf, num = self.analisar_completo(velas)
-                    if d:
-                        score = cf + (num * 5)
-                        if nome in stats_pares and stats_pares[nome]['total'] >= 5:
-                            score += stats_pares[nome]['taxa'] * 0.2
-                        if score > melhor_score:
-                            melhor_score = score
-                            melhor = {'ativo': nome, 'direcao': d, 'confianca': cf, 'estrategias': num}
-            return melhor
-        except: return None
+        melhor = None; melhor_score = 0
+        
+        for nome, velas in velas_dict.items():
+            if nome in bloqueados: continue
+            if nome in stats_pares and stats_pares[nome]['total'] >= 5:
+                if stats_pares[nome]['taxa'] < 50: continue
+            if len(velas) >= 30:
+                d, cf, num, det = self.analisar(velas)
+                if d:
+                    score = cf + (num * 5)
+                    if nome in stats_pares and stats_pares[nome]['total'] >= 5:
+                        score += stats_pares[nome]['taxa'] * 0.2
+                    if score > melhor_score:
+                        melhor_score = score
+                        melhor = {'ativo': nome, 'direcao': d, 'confianca': cf, 'estrategias': num, 'detalhes': det}
+        
+        return melhor
 
 # ═══════════════════════════════════════════
-# 🧠 CÉREBRO VISUAL + 🌊 FLUXO
+# 📊 CATÁLOGO DE PARES
 # ═══════════════════════════════════════════
-class CerebroVisual:
+class CatalogoPares:
     def __init__(self):
-        self.historico = deque(maxlen=50)
-        self.score_minimo = 55
-        self.max_pavio_ratio = 0.6
-        self.stats_pares = {nome: {'wins': 0, 'losses': 0, 'total': 0, 'taxa': 0} for nome in ATIVOS_OTC}
-        self.tendencias = {nome: "NEUTRA" for nome in ATIVOS_OTC}
-        self.fluxo_atual = {nome: 'NEUTRO' for nome in ATIVOS_OTC}
-        self.forca_fluxo = {nome: 0 for nome in ATIVOS_OTC}
-        self.bloqueios_fluxo = 0
-        self.bonus_fluxo = 0
-        self.bloqueios_neutro = 0
-
-    def atualizar_stats(self, ativo, resultado):
-        if ativo in self.stats_pares:
-            self.stats_pares[ativo]['total'] += 1
-            if resultado == 'win': self.stats_pares[ativo]['wins'] += 1
-            else: self.stats_pares[ativo]['losses'] += 1
-            t = self.stats_pares[ativo]['total']
-            w = self.stats_pares[ativo]['wins']
-            self.stats_pares[ativo]['taxa'] = round((w/t)*100, 1) if t > 0 else 0
-
-    def detectar_fluxo(self, velas):
-        if len(velas) < 15: return 'NEUTRO', 0
-        precos = [v['close'] for v in velas]
-        mc = np.mean(precos[-5:]) if len(precos) >= 5 else precos[-1]
-        ml = np.mean(precos[-15:]) if len(precos) >= 15 else mc
-        dif = ((mc - ml) / ml) * 100 if ml > 0 else 0
-        altas = sum(1 for i in range(-min(10, len(precos)-1), 0) if precos[i] > precos[i-1])
-        baixas = 10 - altas if len(precos) >= 11 else 5 - altas
-        forca = max(altas, baixas) / 10 if len(precos) >= 11 else 0.5
-        if dif > 0.03 and altas >= 6: return 'CALL', forca
-        if dif < -0.03 and baixas >= 6: return 'PUT', forca
-        return 'NEUTRO', forca
-
-    def atualizar_fluxos(self, velas_dict):
-        for nome, velas in velas_dict.items():
-            if len(velas) >= 15:
-                self.fluxo_atual[nome], self.forca_fluxo[nome] = self.detectar_fluxo(velas)
-
-    def atualizar_tendencias(self, velas_dict):
-        for nome, velas in velas_dict.items():
-            if len(velas) >= 21:
-                closes = np.array([v['close'] for v in velas])
-                ema9 = np.mean(closes[-9:]) if len(closes) >= 9 else np.mean(closes)
-                ema21 = np.mean(closes[-21:]) if len(closes) >= 21 else ema9
-                if ema9 > ema21 * 1.0002: self.tendencias[nome] = "ALTA 📈"
-                elif ema9 < ema21 * 0.9998: self.tendencias[nome] = "BAIXA 📉"
-                else: self.tendencias[nome] = "NEUTRA ➡️"
-
-    def avaliar(self, sinal, velas):
-        direcao = sinal.get('direcao')
-        ativo = sinal.get('ativo', '')
-
-        # Pavio
-        try:
-            if len(velas) >= 1:
-                v = velas[-1]
-                corpo = abs(v['close'] - v['open'])
-                if corpo > 0:
-                    if direcao == 'CALL':
-                        ratio = (v['high'] - max(v['close'], v['open'])) / corpo
-                        if ratio > self.max_pavio_ratio: return False, 0, ["🕯️ Pavio superior grande"]
-                    else:
-                        ratio = (min(v['close'], v['open']) - v['low']) / corpo
-                        if ratio > self.max_pavio_ratio: return False, 0, ["🕯️ Pavio inferior grande"]
-        except: pass
-
-        # 🌊 FLUXO
-        fluxo = self.fluxo_atual.get(ativo, 'NEUTRO')
-        forca = self.forca_fluxo.get(ativo, 0)
-
-        if fluxo == 'NEUTRO':
-            self.bloqueios_neutro += 1
-            return False, 0, ["🌊 BLOQUEADO: Fluxo NEUTRO"]
-
-        if direcao != fluxo and forca >= 0.65:
-            self.bloqueios_fluxo += 1
-            return False, 0, [f"🌊 BLOQUEADO: Contra fluxo {fluxo}"]
-
-        # Score
-        score = 0
-        motivos = []
-        conf = sinal.get('confianca', 0)
-        score += (conf / 100) * 35
-        est = sinal.get('estrategias', 0)
-        score += (est / 5) * 25
-        if est >= 3: motivos.append(f"{est}/5 estratégias")
-        hora = datetime.now().hour
-        if 6 <= hora <= 23: score += 15
-        if len(self.historico) > 0 and np.mean(self.historico) > 70: score += 10
-
-        if direcao == fluxo:
-            bonus = int(forca * 15)
-            score += bonus
-            motivos.append(f"🌊 Fluxo {fluxo} +{bonus}")
-            self.bonus_fluxo += 1
-        else:
-            penalty = int(forca * 10)
-            score -= penalty
-            motivos.append(f"⚠️ Contra fluxo -{penalty}")
-
-        motivos.append(f"Score: {score:.0f}/{self.score_minimo}")
-        aprovado = score >= self.score_minimo
-        return aprovado, score, motivos
-
-    def registrar(self, resultado):
-        self.historico.append(1 if resultado == 'win' else 0)
+        self.stats = {nome: {'wins': 0, 'losses': 0, 'total': 0, 'taxa': 0} for nome in ATIVOS_OTC}
+    
+    def atualizar(self, ativo, resultado):
+        if ativo in self.stats:
+            self.stats[ativo]['total'] += 1
+            if resultado == 'win': self.stats[ativo]['wins'] += 1
+            else: self.stats[ativo]['losses'] += 1
+            t = self.stats[ativo]['total']
+            w = self.stats[ativo]['wins']
+            self.stats[ativo]['taxa'] = round((w/t)*100, 1) if t > 0 else 0
 
 # ═══════════════════════════════════════════
 # IQ API
@@ -474,11 +383,10 @@ class Bot:
         self.m = QuantumIA()
         self.p = Placar()
         self.iq = IQAPI(EMAIL, SENHA, ATIVOS_OTC)
-        self.cerebro = CerebroVisual()
+        self.catalogo = CatalogoPares()
         self.op = False; self.g = 0; self.ult = 0; self.sinais = 0
         self.ultimo_sinal_ativo = {}
         self.intervalo_minimo = 180
-        self.sinais_recusados = 0
         self.ultimo_dia = datetime.now().day
         self.placar_enviado = False
 
@@ -511,7 +419,7 @@ class Bot:
 ⏰ {agora.strftime('%H:%M')}
 
 ┌──────────────────────────┐
-│ ⚛️ QUANTUM IA           │
+│ ⚛️ QUANTUM IA M1        │
 │ 🟢 Wins: {w}              │
 │ 🟡 Gale 1: {g1}            │
 │ 🔴 Losses: {l}            │
@@ -519,8 +427,6 @@ class Bot:
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
-│ 🛡️ Recusados: {self.sinais_recusados} │
-│ 🚫 Neutro: {self.cerebro.bloqueios_neutro} │
 └──────────────────────────┘
 
 🔄 *Placar zerado!*"""
@@ -531,18 +437,15 @@ class Bot:
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
         self.p.zerar()
-        self.sinais = 0; self.sinais_recusados = 0
-        self.cerebro.historico.clear()
-        self.cerebro.bloqueios_fluxo = 0; self.cerebro.bonus_fluxo = 0
-        self.cerebro.bloqueios_neutro = 0
+        self.sinais = 0
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
     def fmt_sinal(self, s):
         he = (datetime.now().replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
         e = "🟢" if s['direcao'] == 'CALL' else "🔴"
         est = s.get('estrategias', 0)
-        fluxo = self.cerebro.fluxo_atual.get(s['ativo'], 'NEUTRO')
-        alinhado = "✅ ALINHADO" if fluxo == s['direcao'] else "⚠️ CONTRA"
+        det = s.get('detalhes', {})
+        det_str = " | ".join([f"{k}: {v}" for k, v in det.items()])
         return f"""⚛️ SINAL QUANTUM IA ⚛️
 
 ⏰ Horário: {he}
@@ -551,8 +454,7 @@ class Bot:
 ⌛️ Expiração: M1
 📊 Confiança: {s['confianca']:.0f}%
 🧠 Estratégias: {est}/5
-🛡️ Score IA: {s.get('score_ia',0):.0f}/100
-🌊 Fluxo: {fluxo} {alinhado}
+📋 {det_str}
 
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
@@ -560,7 +462,8 @@ class Bot:
     def fmt_corr(self, r, s):
         return f"""{r}
 📊 {s['ativo']}-OTC | {s['direcao']} {'🟢' if s['direcao']=='CALL' else '🔴'}
-📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L"""
+📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L
+🎯 Assertividade: {round((self.p.w/max(self.p.w+self.p.l,1))*100,1)}%"""
 
     def bateu(self, d, p, v): return v['high'] > p if d == 'CALL' else v['low'] < p
 
@@ -584,32 +487,57 @@ class Bot:
             await self.esperar(5); v = self.iq.velas[at]
             if len(v) > 0 and self.bateu(d, pc, v[-1]):
                 r = self.p.win(0); print(f"  ✅ {r}"); self.tg.send(self.fmt_corr(r, sinal))
-                self.cerebro.registrar('win'); self.cerebro.atualizar_stats(at, 'win'); self.op = False; return
+                self.catalogo.atualizar(at, 'win'); self.op = False; return
             print(f"  ❌ Principal")
             self.g = 1; v = self.iq.velas[at]; pg = v[-1]['open'] if len(v) > 0 else pc
             print(f"  🔄 GALE 1 | OPEN:{pg:.5f}"); await self.esperar(5); v = self.iq.velas[at]
             if len(v) > 0 and self.bateu(d, pg, v[-1]):
                 r = self.p.win(1); print(f"  ✅ {r}"); self.tg.send(self.fmt_corr(r, sinal))
-                self.cerebro.registrar('win'); self.cerebro.atualizar_stats(at, 'win'); self.op = False; return
+                self.catalogo.atualizar(at, 'win'); self.op = False; return
             print(f"  ❌ GALE 1"); r = self.p.loss(); print(f"  🔴 {r}"); self.tg.send(self.fmt_corr(r, sinal))
-            self.cerebro.registrar('loss'); self.cerebro.atualizar_stats(at, 'loss'); self.op = False
+            self.catalogo.atualizar(at, 'loss'); self.op = False
         except Exception as e: print(f"  ❌ {e}"); self.op = False
+
+    async def catalogacao_inicial(self):
+        print(f"\n  {C.GOLD}📊 CATALOGAÇÃO INICIAL (80 velas){C.E}")
+        print(f"  {C.GOLD}{'─'*50}{C.E}")
+        for nome in ATIVOS_OTC:
+            velas = self.iq.velas[nome]
+            if len(velas) < 35:
+                print(f"  {C.Y}⚠️ {nome}: Poucas velas ({len(velas)}){C.E}")
+                continue
+            wins = 0; total = 0
+            for i in range(35, len(velas)-1):
+                janela = list(velas)[i-35:i+1]
+                d, cf, num, det = self.m.analisar(janela)
+                if d:
+                    total += 1
+                    vela_seguinte = list(velas)[i+1]
+                    if self.bateu(d, vela_seguinte['open'], vela_seguinte):
+                        wins += 1
+            if total > 0:
+                self.catalogo.stats[nome]['wins'] = wins
+                self.catalogo.stats[nome]['total'] = total
+                self.catalogo.stats[nome]['taxa'] = round((wins/total)*100, 1)
+                print(f"  {C.G}✅ {nome}: {wins}/{total} acertos ({self.catalogo.stats[nome]['taxa']}%){C.E}")
+            else:
+                print(f"  {C.Y}⚠️ {nome}: Nenhum sinal encontrado{C.E}")
+        print(f"  {C.GOLD}{'─'*50}{C.E}")
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA Cloud...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA M1...\n")
         if not self.iq.conectar(): print(f"  ❌ Falha conexão!"); return
         self.iq.atualizar()
-        self.cerebro.atualizar_fluxos(self.iq.velas)
+        await self.catalogacao_inicial()
         self.ultimo_dia = datetime.now().day
-        print(f"\n  ✅ QUANTUM IA CLOUD | 🧠👁️🌊 | 🚫 NEUTRO BLOQUEADO | 📊 Placar Auto\n")
-        self.tg.send(f"⚛️ *QUANTUM IA CLOUD*\n📊 3 pares OTC\n🌊 Fluxo ALINHADO\n🚫 NEUTRO BLOQUEADO\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA M1 | 5 Estratégias | 3/5 = Entra | Gale 1 | 📊 Placar Auto\n")
+        self.tg.send(f"⚛️ *QUANTUM IA M1*\n📊 5 Estratégias Unidas\n🏆 3/5 Confirmam = Entra\n🔄 Gale 1\n⏰ {datetime.now().strftime('%H:%M:%S')}")
 
         while True:
             try:
                 agora = datetime.now()
 
-                # 📊 PLACAR DIÁRIO
                 if agora.hour == 23 and agora.minute == 59 and not self.placar_enviado:
                     self.fechar_dia()
                     self.placar_enviado = True
@@ -618,27 +546,23 @@ class Bot:
                     self.placar_enviado = False
 
                 if agora.second in [0, 30]:
-                    try:
-                        self.iq.atualizar()
-                        self.cerebro.atualizar_tendencias(self.iq.velas)
-                        self.cerebro.atualizar_fluxos(self.iq.velas)
+                    try: self.iq.atualizar()
                     except: self.iq.ok = False
 
                 if not self.op:
                     try:
                         bloqueados = [a for a in ATIVOS_OTC if not self.pode_enviar(a)]
-                        sinal = self.m.melhor_par(self.iq.velas, bloqueados, self.cerebro.stats_pares)
+                        sinal = self.m.melhor_par(self.iq.velas, bloqueados, self.catalogo.stats)
                         if sinal and time.time() - self.ult > 25:
-                            aprovado, score, motivos = self.cerebro.avaliar(sinal, self.iq.velas[sinal['ativo']])
-                            if aprovado:
-                                self.op = True; self.sinais += 1
-                                self.registrar_envio(sinal['ativo'])
-                                sinal['score_ia'] = score
-                                he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
-                                print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠{sinal.get('estrategias',0)}/5 | 🛡️{score:.0f}/100 | ⏰ {he}")
-                                self.tg.send(self.fmt_sinal(sinal)); self.ult = time.time()
-                                asyncio.create_task(self.corrigir(sinal))
-                            else: self.sinais_recusados += 1
+                            self.op = True; self.sinais += 1
+                            self.registrar_envio(sinal['ativo'])
+                            he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
+                            det = sinal.get('detalhes', {})
+                            det_str = " | ".join([f"{k}: {v}" for k, v in det.items()])
+                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/5 | ⏰ {he}")
+                            print(f"  📋 {det_str}")
+                            self.tg.send(self.fmt_sinal(sinal)); self.ult = time.time()
+                            asyncio.create_task(self.corrigir(sinal))
                     except: pass
 
                 if agora.second in [0, 30]:
@@ -646,10 +570,10 @@ class Bot:
                         w, l, g1 = self.p.w, self.p.l, self.p.g1
                         t = max(w + l, 1); tx = round((w / t) * 100, 1)
                         lucro = round(w * 1.6 + g1 * 0.4 - l * 5, 2)
+                        stats_str = " | ".join([f"{n}:{self.catalogo.stats[n]['taxa']}%" for n in ATIVOS_OTC])
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}")
-                        print(f"{C.GOLD}│{C.E} 🌊 {' | '.join([f'{n}:{self.cerebro.fluxo_atual[n]}' for n in ATIVOS_OTC])}")
-                        print(f"{C.GOLD}│{C.E} 🚫 Neutro: {self.cerebro.bloqueios_neutro} | ✅ Alinhado: {self.cerebro.bonus_fluxo} | 🛡️ Recusados: {self.sinais_recusados}")
+                        print(f"{C.GOLD}│{C.E} 📊 {stats_str}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────────┘{C.E}")
                     except: pass
 
