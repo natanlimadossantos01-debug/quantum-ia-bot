@@ -5,15 +5,19 @@
 ║   🔄 Gale 1 | 5 Estratégias Unidas         ║
 ║   🏆 3/5 Confirmam = Entra                 ║
 ║   📊 Catálogo Inteligente de Pares         ║
+║   🕐 Horário Brasil (GMT-3)                ║
 ║   📊 Placar Diário | ☁️ Cloud Ready        ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import deque
 from pathlib import Path
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+
+# 🕐 FUSO HORÁRIO BRASIL
+FUSO_BR = timezone(timedelta(hours=-3))
 
 class C:
     G='\033[92m';Y='\033[93m';R='\033[91m';C='\033[96m';W='\033[97m';B='\033[1m';E='\033[0m';GOLD='\033[38;5;220m'
@@ -26,7 +30,7 @@ def banner():
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🔄 Gale 1 | 5 Estratégias Unidas         ║")
     print(f"║   🏆 3/5 Confirmam = Entra                 ║")
-    print(f"║   📊 Catálogo Inteligente de Pares         ║")
+    print(f"║   🕐 Horário Brasil | 📊 Catálogo Pares    ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE = "config_quantum.json"
@@ -85,11 +89,9 @@ class Telegram:
         except: pass
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS
+# ESTRATÉGIA 1: 💀 MORTALHA
 # ═══════════════════════════════════════════
-
 class E1_Mortalha:
-    """💀 SMA(1)-SMA(34) + WMA(4)"""
     def sma(self, d, p):
         try:
             if len(d) >= p: return sum(d[-p:]) / p
@@ -114,8 +116,10 @@ class E1_Mortalha:
             return None, 0
         except: return None, 0
 
+# ═══════════════════════════════════════════
+# ESTRATÉGIA 2: 🐜 FORMIGA
+# ═══════════════════════════════════════════
 class E2_Formiga:
-    """🐜 EMA(5,10) + CCI(7) + OBV(5)"""
     def ema(self, p, pe):
         try:
             if len(p) < pe: return sum(p) / len(p) if p else 0
@@ -152,8 +156,10 @@ class E2_Formiga:
             return None, 0
         except: return None, 0
 
+# ═══════════════════════════════════════════
+# ESTRATÉGIA 3: 🏰 FORTALEZA
+# ═══════════════════════════════════════════
 class E3_Fortaleza:
-    """🏰 RSI(7) + Bollinger(10,2)"""
     def rsi(self, p, pe=7):
         try:
             if len(p) < pe+1: return 50
@@ -182,8 +188,10 @@ class E3_Fortaleza:
             return None, 0
         except: return None, 0
 
+# ═══════════════════════════════════════════
+# ESTRATÉGIA 4: ⚡ RAIO NEGRO
+# ═══════════════════════════════════════════
 class E4_RaioNegro:
-    """⚡ MACD(5,13) + Momentum(3)"""
     def analisar(self, v):
         try:
             if len(v) < 12: return None, 0
@@ -212,8 +220,10 @@ class E4_RaioNegro:
             return None, 0
         except: return None, 0
 
+# ═══════════════════════════════════════════
+# ESTRATÉGIA 5: 🌊 TSUNAMI
+# ═══════════════════════════════════════════
 class E5_Tsunami:
-    """🌊 Força de Tendência"""
     def analisar(self, v):
         try:
             if len(v) < 12: return None, 0
@@ -238,6 +248,7 @@ class QuantumIA:
         self.e4 = E4_RaioNegro()
         self.e5 = E5_Tsunami()
         self.min_confirmacoes = 3
+        self.confianca_minima = 48  # 🔧 Ignora votos com confiança < 48%
         
     def analisar(self, v):
         if len(v) < 30: return None, 0, 0, {}
@@ -257,10 +268,12 @@ class QuantumIA:
         for nome, est in estrategias:
             try:
                 d, c = est.analisar(v)
-                if d:
+                if d and c >= self.confianca_minima:  # 🔧 Filtro de confiança mínima
                     votos[d] += 1
                     confiancas[d].append(c)
                     detalhes[nome] = f"{d} {c:.0f}%"
+                elif d:
+                    detalhes[nome] = f"{d} {c:.0f}% ⚠️"  # Votou mas confiança baixa
                 else:
                     detalhes[nome] = "⏸️"
             except:
@@ -272,12 +285,12 @@ class QuantumIA:
         
         if total_call >= self.min_confirmacoes and total_call > total_put:
             conf = np.mean(confiancas['CALL'])
-            bonus = (total_call - 2) * 3
+            bonus = (total_call - 2) * 4  # 🔧 Bônus maior
             return 'CALL', min(conf + bonus, 95), total_votantes, detalhes
         
         if total_put >= self.min_confirmacoes and total_put > total_call:
             conf = np.mean(confiancas['PUT'])
-            bonus = (total_put - 2) * 3
+            bonus = (total_put - 2) * 4
             return 'PUT', min(conf + bonus, 95), total_votantes, detalhes
         
         return None, 0, total_votantes, detalhes
@@ -356,7 +369,7 @@ class IQAPI:
                         if isinstance(x, dict):
                             try:
                                 self.velas[nome].append({
-                                    'time': datetime.fromtimestamp(x.get('from', 0)),
+                                    'time': datetime.fromtimestamp(x.get('from', 0), FUSO_BR),
                                     'open': float(x['open']), 'high': float(x['max']),
                                     'low': float(x['min']), 'close': float(x['close']),
                                     'volume': int(x.get('volume', 0))
@@ -387,7 +400,7 @@ class Bot:
         self.op = False; self.g = 0; self.ult = 0; self.sinais = 0
         self.ultimo_sinal_ativo = {}
         self.intervalo_minimo = 180
-        self.ultimo_dia = datetime.now().day
+        self.ultimo_dia = datetime.now(FUSO_BR).day
         self.placar_enviado = False
 
     def pode_enviar(self, ativo):
@@ -404,7 +417,7 @@ class Bot:
         return '█' * p + '░' * (10 - p)
 
     def fechar_dia(self):
-        agora = datetime.now()
+        agora = datetime.now(FUSO_BR)
         data = agora.strftime('%d/%m/%Y')
         dias = {'Monday': 'Segunda', 'Tuesday': 'Terça', 'Wednesday': 'Quarta',
                 'Thursday': 'Quinta', 'Friday': 'Sexta', 'Saturday': 'Sábado', 'Sunday': 'Domingo'}
@@ -441,7 +454,8 @@ class Bot:
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
     def fmt_sinal(self, s):
-        he = (datetime.now().replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
+        agora = datetime.now(FUSO_BR)
+        he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
         e = "🟢" if s['direcao'] == 'CALL' else "🔴"
         est = s.get('estrategias', 0)
         det = s.get('detalhes', {})
@@ -469,7 +483,7 @@ class Bot:
 
     async def esperar(self, seg=60):
         try:
-            agora = datetime.now()
+            agora = datetime.now(FUSO_BR)
             alvo = agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
             alvo += timedelta(seconds=seg)
             e = max(0, (alvo - agora).total_seconds())
@@ -527,16 +541,17 @@ class Bot:
     async def run(self):
         banner()
         print(f"\n  ⚛️ Iniciando Quantum IA M1...\n")
+        print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
         if not self.iq.conectar(): print(f"  ❌ Falha conexão!"); return
         self.iq.atualizar()
         await self.catalogacao_inicial()
-        self.ultimo_dia = datetime.now().day
-        print(f"\n  ✅ QUANTUM IA M1 | 5 Estratégias | 3/5 = Entra | Gale 1 | 📊 Placar Auto\n")
-        self.tg.send(f"⚛️ *QUANTUM IA M1*\n📊 5 Estratégias Unidas\n🏆 3/5 Confirmam = Entra\n🔄 Gale 1\n⏰ {datetime.now().strftime('%H:%M:%S')}")
+        self.ultimo_dia = datetime.now(FUSO_BR).day
+        print(f"\n  ✅ QUANTUM IA M1 | 🕐 Brasil | 5 Estratégias | 3/5 = Entra | Gale 1 | 📊 Placar Auto\n")
+        self.tg.send(f"⚛️ *QUANTUM IA M1*\n📊 5 Estratégias Unidas\n🏆 3/5 Confirmam = Entra\n🔄 Gale 1\n🕐 Horário Brasil\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
-                agora = datetime.now()
+                agora = datetime.now(FUSO_BR)
 
                 if agora.hour == 23 and agora.minute == 59 and not self.placar_enviado:
                     self.fechar_dia()
