@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════╗
-║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   🔄 Gale 1 | 5 Estratégias Unidas         ║
-║   🏆 3/5 Confirmam = Entra                 ║
-║   📊 Catálogo Inteligente de Pares         ║
-║   🕐 Horário Brasil (GMT-3)                ║
-║   📊 Placar Diário | ☁️ Cloud Ready        ║
+║   ⚛️  Q U A N T U M   I A   3 . 0         ║
+║   🧠 Cérebro IA Trader Super Inteligente   ║
+║   👁️ Olhos nas Velas | 📈 Análise Gráfica  ║
+║   🏆 5 Estratégias + IA + Visão + Fluxo    ║
+║   🔄 Gale 1 | ☁️ Cloud | 🕐 Horário Brasil ║
+║   📊 Placar Diário Automático              ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -16,7 +16,6 @@ from pathlib import Path
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
-# 🕐 FUSO HORÁRIO BRASIL
 FUSO_BR = timezone(timedelta(hours=-3))
 
 class C:
@@ -27,10 +26,9 @@ def clear(): os.system('clear 2>/dev/null || cls 2>/dev/null')
 def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
-    print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   🔄 Gale 1 | 5 Estratégias Unidas         ║")
-    print(f"║   🏆 3/5 Confirmam = Entra                 ║")
-    print(f"║   🕐 Horário Brasil | 📊 Catálogo Pares    ║")
+    print(f"║   ⚛️  Q U A N T U M   I A   3 . 0         ║")
+    print(f"║   🧠 Cérebro IA | 👁️ Visão | 🌊 Fluxo      ║")
+    print(f"║   🏆 5 Estratégias + IA + Olhos nas Velas  ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE = "config_quantum.json"
@@ -89,7 +87,7 @@ class Telegram:
         except: pass
 
 # ═══════════════════════════════════════════
-# ESTRATÉGIA 1: 💀 MORTALHA
+# 5 ESTRATÉGIAS
 # ═══════════════════════════════════════════
 class E1_Mortalha:
     def sma(self, d, p):
@@ -116,9 +114,6 @@ class E1_Mortalha:
             return None, 0
         except: return None, 0
 
-# ═══════════════════════════════════════════
-# ESTRATÉGIA 2: 🐜 FORMIGA
-# ═══════════════════════════════════════════
 class E2_Formiga:
     def ema(self, p, pe):
         try:
@@ -156,9 +151,6 @@ class E2_Formiga:
             return None, 0
         except: return None, 0
 
-# ═══════════════════════════════════════════
-# ESTRATÉGIA 3: 🏰 FORTALEZA
-# ═══════════════════════════════════════════
 class E3_Fortaleza:
     def rsi(self, p, pe=7):
         try:
@@ -188,9 +180,6 @@ class E3_Fortaleza:
             return None, 0
         except: return None, 0
 
-# ═══════════════════════════════════════════
-# ESTRATÉGIA 4: ⚡ RAIO NEGRO
-# ═══════════════════════════════════════════
 class E4_RaioNegro:
     def analisar(self, v):
         try:
@@ -220,9 +209,6 @@ class E4_RaioNegro:
             return None, 0
         except: return None, 0
 
-# ═══════════════════════════════════════════
-# ESTRATÉGIA 5: 🌊 TSUNAMI
-# ═══════════════════════════════════════════
 class E5_Tsunami:
     def analisar(self, v):
         try:
@@ -238,6 +224,217 @@ class E5_Tsunami:
         except: return None, 0
 
 # ═══════════════════════════════════════════
+# 👁️ OLHOS NAS VELAS - ANÁLISE VISUAL
+# ═══════════════════════════════════════════
+class OlhosNasVelas:
+    def __init__(self):
+        self.max_pavio_ratio = 0.6
+    
+    def analisar(self, velas, direcao):
+        """👁️ Análise visual completa das velas"""
+        if len(velas) < 5: return 50, "Poucas velas"
+        
+        nota = 50
+        detalhes = []
+        
+        try:
+            v = velas[-1]
+            v1 = velas[-2]
+            corpo = abs(v['close'] - v['open'])
+            range_total = v['high'] - v['low']
+            pavio_sup = v['high'] - max(v['close'], v['open'])
+            pavio_inf = min(v['close'], v['open']) - v['low']
+            
+            # 1. PADRÕES DE CANDLE
+            if direcao == 'CALL':
+                # Martelo
+                if pavio_inf > corpo * 2 and pavio_sup < corpo * 0.3:
+                    nota += 20; detalhes.append("🔨 Martelo")
+                # Engolfo de Alta
+                elif (v['close'] > v['open'] and v1['close'] < v1['open'] and
+                      v['close'] > v1['open'] and corpo > abs(v1['close']-v1['open'])*1.3):
+                    nota += 18; detalhes.append("📈 Engolfo Alta")
+                # Força compradora
+                elif corpo > range_total * 0.6 and v['close'] > v['open']:
+                    nota += 12; detalhes.append("💪 Vela forte CALL")
+            
+            elif direcao == 'PUT':
+                # Estrela Cadente
+                if pavio_sup > corpo * 2 and pavio_inf < corpo * 0.3:
+                    nota += 20; detalhes.append("💫 Estrela Cadente")
+                # Engolfo de Baixa
+                elif (v['close'] < v['open'] and v1['close'] > v1['open'] and
+                      v['close'] < v1['open'] and corpo > abs(v1['close']-v1['open'])*1.3):
+                    nota += 18; detalhes.append("📉 Engolfo Baixa")
+                # Força vendedora
+                elif corpo > range_total * 0.6 and v['close'] < v['open']:
+                    nota += 12; detalhes.append("💪 Vela forte PUT")
+            
+            # 2. ESTRUTURA DO GRÁFICO
+            precos = [x['close'] for x in velas]
+            altas = sum(1 for i in range(-5, 0) if precos[i] > precos[i-1])
+            
+            if direcao == 'CALL' and altas >= 3:
+                nota += 10; detalhes.append("📈 Tendência visual CALL")
+            elif direcao == 'PUT' and altas <= 2:
+                nota += 10; detalhes.append("📉 Tendência visual PUT")
+            
+            # 3. PAVIOS (REJEIÇÃO)
+            if direcao == 'CALL' and pavio_sup < corpo * 0.3:
+                nota += 8; detalhes.append("✅ Sem rejeição superior")
+            elif direcao == 'PUT' and pavio_inf < corpo * 0.3:
+                nota += 8; detalhes.append("✅ Sem rejeição inferior")
+            
+            # Penalidade: pavio contrário grande
+            if direcao == 'CALL' and pavio_sup > corpo * 0.8:
+                nota -= 15; detalhes.append("⚠️ Rejeição superior grande")
+            elif direcao == 'PUT' and pavio_inf > corpo * 0.8:
+                nota -= 15; detalhes.append("⚠️ Rejeição inferior grande")
+            
+        except: pass
+        
+        return min(max(nota, 0), 100), ", ".join(detalhes) if detalhes else "Setup neutro"
+    
+    def fluxo_visual(self, velas):
+        """🌊 Detecta fluxo pela análise visual das velas"""
+        if len(velas) < 10: return 'NEUTRO', 0
+        
+        precos = [v['close'] for v in velas]
+        altas = sum(1 for i in range(-10, 0) if precos[i] > precos[i-1])
+        baixas = 10 - altas
+        
+        # Corpos das últimas velas
+        corpos = []
+        for v in velas[-5:]:
+            corpo = v['close'] - v['open']
+            corpos.append(corpo)
+        
+        soma_corpos = sum(corpos)
+        forca = max(altas, baixas) / 10
+        
+        if altas >= 6 and soma_corpos > 0:
+            return 'CALL', forca
+        elif baixas >= 6 and soma_corpos < 0:
+            return 'PUT', forca
+        
+        return 'NEUTRO', forca
+
+# ═══════════════════════════════════════════
+# 🧠 CÉREBRO IA TRADER
+# ═══════════════════════════════════════════
+class CerebroIA:
+    def __init__(self):
+        self.olhos = OlhosNasVelas()
+        self.pesos = {
+            'mortalha': 1.0, 'formiga': 1.0, 'fortaleza': 1.0,
+            'raio_negro': 1.0, 'tsunami': 1.0
+        }
+        self.historico_est = {
+            'mortalha': {'wins': 0, 'total': 0},
+            'formiga': {'wins': 0, 'total': 0},
+            'fortaleza': {'wins': 0, 'total': 0},
+            'raio_negro': {'wins': 0, 'total': 0},
+            'tsunami': {'wins': 0, 'total': 0}
+        }
+        self.ops_totais = 0
+        self.ops_vencidas = 0
+        self.score_minimo = 58
+        self.modo_agressivo = True
+    
+    def aprender(self, detalhes, resultado):
+        """🧠 Aprende com cada operação"""
+        self.ops_totais += 1
+        if 'WIN' in resultado: self.ops_vencidas += 1
+        
+        for nome in self.pesos:
+            if nome in detalhes and '⚠️' not in detalhes[nome] and '⏸️' not in detalhes[nome]:
+                self.historico_est[nome]['total'] += 1
+                if 'WIN' in resultado:
+                    self.historico_est[nome]['wins'] += 1
+                
+                total = self.historico_est[nome]['total']
+                wins = self.historico_est[nome]['wins']
+                if total >= 3:
+                    taxa = wins / total
+                    self.pesos[nome] = 0.5 + taxa
+        
+        # Ajusta agressividade
+        if self.ops_totais >= 10:
+            taxa_geral = self.ops_vencidas / self.ops_totais
+            if taxa_geral > 0.90:
+                self.score_minimo = 55
+                self.modo_agressivo = True
+            elif taxa_geral < 0.75:
+                self.score_minimo = 62
+                self.modo_agressivo = False
+            else:
+                self.score_minimo = 58
+    
+    def avaliar(self, sinal, velas):
+        """🧠 Avaliação completa: Visual + Fluxo + Score"""
+        direcao = sinal.get('direcao')
+        ativo = sinal.get('ativo', '')
+        detalhes = sinal.get('detalhes', {})
+        
+        # 👁️ Análise Visual
+        nota_visual, motivo_visual = self.olhos.analisar(velas, direcao)
+        if nota_visual < 40:
+            return False, 0, [f"👁️ Visual ruim ({nota_visual}): {motivo_visual}"]
+        
+        # 🌊 Fluxo Visual
+        fluxo, forca = self.olhos.fluxo_visual(velas)
+        if fluxo != 'NEUTRO' and fluxo != direcao and forca >= 0.65:
+            return False, 0, [f"🌊 Contra fluxo visual {fluxo} ({forca*100:.0f}%)"]
+        
+        # 🧠 Score IA
+        score = 0
+        motivos = []
+        
+        # Confiança da votação
+        conf = sinal.get('confianca', 0)
+        score += (conf / 100) * 30
+        
+        # Número de estratégias
+        est = sinal.get('estrategias', 0)
+        score += (est / 5) * 20
+        if est >= 4: motivos.append(f"{est}/5 estratégias")
+        
+        # 👁️ Bônus visual
+        score += (nota_visual / 100) * 20
+        motivos.append(f"👁️ {motivo_visual}")
+        
+        # 🌊 Bônus fluxo
+        if fluxo == direcao:
+            bonus = int(forca * 12)
+            score += bonus
+            motivos.append(f"🌊 Fluxo alinhado +{bonus}")
+        
+        # 🏆 Catálogo (se disponível)
+        if ativo in getattr(self, 'stats_pares', {}):
+            taxa = self.stats_pares[ativo].get('taxa', 0)
+            if taxa > 60:
+                score += min((taxa - 60) * 0.3, 10)
+                motivos.append(f"📊 Par {taxa}%")
+        
+        # Horário
+        hora = datetime.now(FUSO_BR).hour
+        if 6 <= hora <= 23: score += 8
+        if 8 <= hora <= 17: motivos.append("🏢 Horário nobre")
+        
+        # Histórico recente
+        if self.ops_totais >= 5:
+            taxa_recente = self.ops_vencidas / max(self.ops_totais, 1)
+            if taxa_recente > 0.80: score += 5
+        
+        # Força do sinal (5/5 = máximo)
+        if est >= 5: score += 5
+        
+        aprovado = score >= self.score_minimo
+        motivos.append(f"Score: {score:.0f}/{self.score_minimo}")
+        
+        return aprovado, score, motivos
+
+# ═══════════════════════════════════════════
 # ⚛️ QUANTUM IA - VOTAÇÃO
 # ═══════════════════════════════════════════
 class QuantumIA:
@@ -247,8 +444,9 @@ class QuantumIA:
         self.e3 = E3_Fortaleza()
         self.e4 = E4_RaioNegro()
         self.e5 = E5_Tsunami()
+        self.cerebro = CerebroIA()
         self.min_confirmacoes = 3
-        self.confianca_minima = 48  # 🔧 Ignora votos com confiança < 48%
+        self.confianca_minima = 48
         
     def analisar(self, v):
         if len(v) < 30: return None, 0, 0, {}
@@ -258,34 +456,35 @@ class QuantumIA:
         detalhes = {}
         
         estrategias = [
-            ('💀 Mortalha', self.e1),
-            ('🐜 Formiga', self.e2),
-            ('🏰 Fortaleza', self.e3),
-            ('⚡ Raio Negro', self.e4),
-            ('🌊 Tsunami', self.e5)
+            ('mortalha', self.e1, '💀 Mortalha'),
+            ('formiga', self.e2, '🐜 Formiga'),
+            ('fortaleza', self.e3, '🏰 Fortaleza'),
+            ('raio_negro', self.e4, '⚡ Raio Negro'),
+            ('tsunami', self.e5, '🌊 Tsunami')
         ]
         
-        for nome, est in estrategias:
+        for nome, est, label in estrategias:
             try:
                 d, c = est.analisar(v)
-                if d and c >= self.confianca_minima:  # 🔧 Filtro de confiança mínima
-                    votos[d] += 1
+                if d and c >= self.confianca_minima:
+                    peso = self.cerebro.pesos.get(nome, 1.0)
+                    votos[d] += peso
                     confiancas[d].append(c)
-                    detalhes[nome] = f"{d} {c:.0f}%"
+                    detalhes[label] = f"{d} {c:.0f}%"
                 elif d:
-                    detalhes[nome] = f"{d} {c:.0f}% ⚠️"  # Votou mas confiança baixa
+                    detalhes[label] = f"{d} {c:.0f}% ⚠️"
                 else:
-                    detalhes[nome] = "⏸️"
+                    detalhes[label] = "⏸️"
             except:
-                detalhes[nome] = "❌"
+                detalhes[label] = "❌"
         
         total_call = votos['CALL']
         total_put = votos['PUT']
-        total_votantes = total_call + total_put
+        total_votantes = sum(1 for v in detalhes.values() if '⚠️' not in v and '⏸️' not in v and '❌' not in v)
         
         if total_call >= self.min_confirmacoes and total_call > total_put:
             conf = np.mean(confiancas['CALL'])
-            bonus = (total_call - 2) * 4  # 🔧 Bônus maior
+            bonus = (total_call - 2) * 4
             return 'CALL', min(conf + bonus, 95), total_votantes, detalhes
         
         if total_put >= self.min_confirmacoes and total_put > total_call:
@@ -296,6 +495,7 @@ class QuantumIA:
         return None, 0, total_votantes, detalhes
     
     def melhor_par(self, velas_dict, bloqueados, stats_pares):
+        self.cerebro.stats_pares = stats_pares
         melhor = None; melhor_score = 0
         
         for nome, velas in velas_dict.items():
@@ -305,17 +505,21 @@ class QuantumIA:
             if len(velas) >= 30:
                 d, cf, num, det = self.analisar(velas)
                 if d:
-                    score = cf + (num * 5)
-                    if nome in stats_pares and stats_pares[nome]['total'] >= 5:
-                        score += stats_pares[nome]['taxa'] * 0.2
-                    if score > melhor_score:
-                        melhor_score = score
-                        melhor = {'ativo': nome, 'direcao': d, 'confianca': cf, 'estrategias': num, 'detalhes': det}
+                    # 🧠 Passa pelo Cérebro IA
+                    sinal_temp = {'direcao': d, 'confianca': cf, 'estrategias': num, 'detalhes': det, 'ativo': nome}
+                    aprovado, score, motivos = self.cerebro.avaliar(sinal_temp, velas)
+                    if aprovado:
+                        final_score = cf + (num * 5) + (score * 0.3)
+                        if nome in stats_pares and stats_pares[nome]['total'] >= 5:
+                            final_score += stats_pares[nome]['taxa'] * 0.2
+                        if final_score > melhor_score:
+                            melhor_score = final_score
+                            melhor = {'ativo': nome, 'direcao': d, 'confianca': cf, 'estrategias': num, 'detalhes': det, 'score_ia': score}
         
         return melhor
 
 # ═══════════════════════════════════════════
-# 📊 CATÁLOGO DE PARES
+# CATÁLOGO DE PARES
 # ═══════════════════════════════════════════
 class CatalogoPares:
     def __init__(self):
@@ -350,9 +554,7 @@ class IQAPI:
                 ok, _ = self.api.connect()
                 if ok:
                     self.ok = True; self.erros = 0
-                    print(f"  {C.G}✅ Conectado!{C.E}")
                     return True
-                print(f"  {C.Y}⚠️ Tentativa {t+1}/5{C.E}")
                 time.sleep(5 * (t+1))
             except: time.sleep(5 * (t+1))
         self.ok = False; return False
@@ -432,7 +634,7 @@ class Bot:
 ⏰ {agora.strftime('%H:%M')}
 
 ┌──────────────────────────┐
-│ ⚛️ QUANTUM IA M1        │
+│ ⚛️ QUANTUM IA 3.0       │
 │ 🟢 Wins: {w}              │
 │ 🟡 Gale 1: {g1}            │
 │ 🔴 Losses: {l}            │
@@ -440,6 +642,7 @@ class Bot:
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
+│ 🧠 IA ops: {self.m.cerebro.ops_totais} │
 └──────────────────────────┘
 
 🔄 *Placar zerado!*"""
@@ -449,8 +652,7 @@ class Bot:
         print(f"{C.GOLD}║ 🗓️ {data} ({dia})     ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
-        self.p.zerar()
-        self.sinais = 0
+        self.p.zerar(); self.sinais = 0
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
     def fmt_sinal(self, s):
@@ -460,7 +662,8 @@ class Bot:
         est = s.get('estrategias', 0)
         det = s.get('detalhes', {})
         det_str = " | ".join([f"{k}: {v}" for k, v in det.items()])
-        return f"""⚛️ SINAL QUANTUM IA ⚛️
+        score = s.get('score_ia', 0)
+        return f"""⚛️ SINAL QUANTUM IA 3.0 ⚛️
 
 ⏰ Horário: {he}
 💰 Ativo: {s['ativo']}-OTC
@@ -468,6 +671,7 @@ class Bot:
 ⌛️ Expiração: M1
 📊 Confiança: {s['confianca']:.0f}%
 🧠 Estratégias: {est}/5
+🛡️ Score IA: {score:.0f}/100
 📋 {det_str}
 
 ⚠️ Entrar somente no horário marcado.
@@ -501,15 +705,21 @@ class Bot:
             await self.esperar(5); v = self.iq.velas[at]
             if len(v) > 0 and self.bateu(d, pc, v[-1]):
                 r = self.p.win(0); print(f"  ✅ {r}"); self.tg.send(self.fmt_corr(r, sinal))
-                self.catalogo.atualizar(at, 'win'); self.op = False; return
+                self.catalogo.atualizar(at, 'win')
+                self.m.cerebro.aprender(sinal.get('detalhes', {}), 'WIN')
+                self.op = False; return
             print(f"  ❌ Principal")
             self.g = 1; v = self.iq.velas[at]; pg = v[-1]['open'] if len(v) > 0 else pc
             print(f"  🔄 GALE 1 | OPEN:{pg:.5f}"); await self.esperar(5); v = self.iq.velas[at]
             if len(v) > 0 and self.bateu(d, pg, v[-1]):
                 r = self.p.win(1); print(f"  ✅ {r}"); self.tg.send(self.fmt_corr(r, sinal))
-                self.catalogo.atualizar(at, 'win'); self.op = False; return
+                self.catalogo.atualizar(at, 'win')
+                self.m.cerebro.aprender(sinal.get('detalhes', {}), 'WIN GALE 1')
+                self.op = False; return
             print(f"  ❌ GALE 1"); r = self.p.loss(); print(f"  🔴 {r}"); self.tg.send(self.fmt_corr(r, sinal))
-            self.catalogo.atualizar(at, 'loss'); self.op = False
+            self.catalogo.atualizar(at, 'loss')
+            self.m.cerebro.aprender(sinal.get('detalhes', {}), 'LOSS')
+            self.op = False
         except Exception as e: print(f"  ❌ {e}"); self.op = False
 
     async def catalogacao_inicial(self):
@@ -540,14 +750,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA M1...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA 3.0...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
         if not self.iq.conectar(): print(f"  ❌ Falha conexão!"); return
         self.iq.atualizar()
         await self.catalogacao_inicial()
         self.ultimo_dia = datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA M1 | 🕐 Brasil | 5 Estratégias | 3/5 = Entra | Gale 1 | 📊 Placar Auto\n")
-        self.tg.send(f"⚛️ *QUANTUM IA M1*\n📊 5 Estratégias Unidas\n🏆 3/5 Confirmam = Entra\n🔄 Gale 1\n🕐 Horário Brasil\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA 3.0 | 🧠 IA + 👁️ Visão + 🌊 Fluxo | 3/5 Entra | Gale 1\n")
+        self.tg.send(f"⚛️ *QUANTUM IA 3.0*\n🧠 Cérebro IA Trader\n👁️ Olhos nas Velas\n🌊 Fluxo Visual\n🏆 5 Estratégias\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -574,7 +784,8 @@ class Bot:
                             he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
                             det = sinal.get('detalhes', {})
                             det_str = " | ".join([f"{k}: {v}" for k, v in det.items()])
-                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/5 | ⏰ {he}")
+                            score = sinal.get('score_ia', 0)
+                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/5 | 🛡️{score:.0f}/100 | ⏰ {he}")
                             print(f"  📋 {det_str}")
                             self.tg.send(self.fmt_sinal(sinal)); self.ult = time.time()
                             asyncio.create_task(self.corrigir(sinal))
@@ -586,9 +797,12 @@ class Bot:
                         t = max(w + l, 1); tx = round((w / t) * 100, 1)
                         lucro = round(w * 1.6 + g1 * 0.4 - l * 5, 2)
                         stats_str = " | ".join([f"{n}:{self.catalogo.stats[n]['taxa']}%" for n in ATIVOS_OTC])
+                        pesos_str = " | ".join([f"{n}:{self.m.cerebro.pesos[n]:.1f}" for n in ['mortalha','formiga','fortaleza','raio_negro','tsunami']])
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}")
                         print(f"{C.GOLD}│{C.E} 📊 {stats_str}")
+                        print(f"{C.GOLD}│{C.E} 🧠 Pesos: {pesos_str}")
+                        print(f"{C.GOLD}│{C.E} 🎯 Score mín: {self.m.cerebro.score_minimo} | Modo: {'⚡Agressivo' if self.m.cerebro.modo_agressivo else '🛡️Defensivo'}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────────┘{C.E}")
                     except: pass
 
