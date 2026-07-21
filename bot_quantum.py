@@ -28,7 +28,7 @@ def banner():
     print(f"║   👁️ Visão | 🌊 Fluxo ALINHADO | ☁️ Cloud ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
-CONFIG_FILE="config_quantum.json"
+CONFIG_FILE = "config_quantum.json"
 
 def carregar_config():
     """☁️ Cloud: variáveis de ambiente | 💻 Local: arquivo JSON"""
@@ -69,12 +69,19 @@ def carregar_config():
     # 🆕 PRIMEIRA VEZ: Input manual
     # ═══════════════════════════════════════
     banner()
-    cfg = {
-        "token": input(f"{C.G}Token Telegram: {C.E}").strip(),
-        "chat": input(f"{C.G}Chat ID: {C.E}").strip(),
-        "email": input(f"\n{C.G}Email IQ: {C.E}").strip(),
-        "senha": input(f"{C.G}Senha IQ: {C.E}").strip()
-    }
+    try:
+        cfg = {
+            "token": input(f"{C.G}Token Telegram: {C.E}").strip(),
+            "chat": input(f"{C.G}Chat ID: {C.E}").strip(),
+            "email": input(f"\n{C.G}Email IQ: {C.E}").strip(),
+            "senha": input(f"{C.G}Senha IQ: {C.E}").strip()
+        }
+    except (EOFError, KeyboardInterrupt):
+        print(f"\n{C.R}❌ ERRO: Sem config e sem variáveis de ambiente!{C.E}")
+        print(f"{C.Y}☁️ Configure as variáveis:{C.E}")
+        print(f"  TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, IQ_EMAIL, IQ_SENHA")
+        sys.exit(1)
+    
     with open(CONFIG_FILE, 'w') as f:
         json.dump(cfg, f, indent=2)
     banner()
@@ -113,7 +120,7 @@ class Telegram:
         except: pass
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS
+# 5 ESTRATÉGIAS (SIMPLIFICADAS E ROBUSTAS)
 # ═══════════════════════════════════════════
 class Mortalha:
     def sma(self, d, p):
@@ -219,8 +226,6 @@ class Tsunami:
         try:
             if len(v) < 12: return None, 0
             precos = np.array([x['close'] for x in v])
-            highs = np.array([x['high'] for x in v])
-            lows = np.array([x['low'] for x in v])
             altas = sum(1 for i in range(-min(5, len(v)-1), 0) if precos[i] > precos[i-1])
             sc = 0; sp = 0
             if altas >= 3: sc += 3
@@ -362,7 +367,7 @@ class CerebroVisual:
                         if ratio > self.max_pavio_ratio: return False, 0, ["🕯️ Pavio inferior grande"]
         except: pass
 
-        # 🌊 FLUXO (BLOQUEIA NEUTRO)
+        # 🌊 FLUXO
         fluxo = self.fluxo_atual.get(ativo, 'NEUTRO')
         forca = self.forca_fluxo.get(ativo, 0)
 
@@ -386,7 +391,6 @@ class CerebroVisual:
         if 6 <= hora <= 23: score += 15
         if len(self.historico) > 0 and np.mean(self.historico) > 70: score += 10
 
-        # 🌊 Fluxo Alinhado
         if direcao == fluxo:
             bonus = int(forca * 15)
             score += bonus
