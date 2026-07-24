@@ -2,7 +2,7 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Profissional | Explica Tudo     ║
+║   👨‍🏫 Trader Professor | Explica Tudo       ║
 ║   👁️ Lê Gráfico | 🧠 Ensina Alunos         ║
 ║   🏆 3/5 Confirmam = Entra                 ║
 ║   🔄 Gale 1 | 📊 Placar Diário             ║
@@ -27,8 +27,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Profissional | Explica Tudo     ║")
-    print(f"║   🏆 3/5 = Entra | 🔄 Gale 1               ║")
+    print(f"║   👨‍🏫 Trader Professor | 🏆 3/5 = Entra     ║")
+    print(f"║   👁️ Lê Gráfico | 🧠 Ensina Alunos         ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -209,7 +209,7 @@ class QuantumIA:
     def __init__(self):
         self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
         self.raio_negro=RaioNegro();self.tsunami=Tsunami()
-        self.min_estrategias=3
+        self.min_estrategias=3  # 🏆 3/5 CONFIRMAM
     def analisar_completo(self,v):
         try:
             if len(v)<30:return None,0,0,{}
@@ -244,17 +244,13 @@ class QuantumIA:
         return melhor
 
 # ═══════════════════════════════════════════
-# 👨‍🏫 TRADER PROFISSIONAL
+# 👨‍🏫 TRADER PROFESSOR
 # ═══════════════════════════════════════════
 class TraderProfessor:
     def __init__(self):
         self.historico=deque(maxlen=50)
         self.stats_pares={nome:{'wins':0,'losses':0,'total':0,'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias={nome:"NEUTRA" for nome in ATIVOS_OTC}
-        self.velas_dict={}
-        self.losses=deque(maxlen=50)
-        self.performance_horario={h:{'wins':0,'total':0} for h in range(24)}
-        self.performance_dia={d:{'wins':0,'total':0} for d in ['Seg','Ter','Qua','Qui','Sex','Sab','Dom']}
     
     def atualizar_stats(self,ativo,resultado):
         if ativo in self.stats_pares:
@@ -263,16 +259,8 @@ class TraderProfessor:
             else:self.stats_pares[ativo]['losses']+=1
             t=self.stats_pares[ativo]['total'];w=self.stats_pares[ativo]['wins']
             self.stats_pares[ativo]['taxa']=round((w/t)*100,1) if t>0 else 0
-        h=datetime.now(FUSO_BR).hour
-        self.performance_horario[h]['total']+=1
-        if resultado=='win':self.performance_horario[h]['wins']+=1
-        dias=['Seg','Ter','Qua','Qui','Sex','Sab','Dom']
-        d=dias[datetime.now(FUSO_BR).weekday()]
-        self.performance_dia[d]['total']+=1
-        if resultado=='win':self.performance_dia[d]['wins']+=1
     
-    def atualizar_dados(self,velas_dict):
-        self.velas_dict=velas_dict
+    def atualizar_tendencias(self,velas_dict):
         for nome,velas in velas_dict.items():
             if len(velas)>=21:
                 closes=[v['close'] for v in list(velas)[-21:]]
@@ -281,174 +269,64 @@ class TraderProfessor:
                 elif ema9<ema21*0.9998:self.tendencias[nome]="BAIXA 📉"
                 else:self.tendencias[nome]="NEUTRA ➡️"
     
-    def termometro(self,velas):
-        if len(velas)<10:return "🌡️ Sem dados",50
-        precos=[v['close'] for v in velas]
-        vol=np.std(precos[-10:])/np.mean(precos[-10:]) if np.mean(precos[-10:])>0 else 0
-        score_vol=min(vol*10000,40)
-        altas=sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
-        score_tend=abs(altas-2.5)*12
-        volumes=[v.get('volume',0) for v in velas[-3:]]
-        score_vol_media=min(np.mean(volumes)/100,30)
-        score=score_vol+score_tend+score_vol_media
-        if score>=70:return f"🔥 QUENTE ({score:.0f}/100)",score
-        elif score>=40:return f"🌤️ MORNO ({score:.0f}/100)",score
-        else:return f"❄️ FRIO ({score:.0f}/100)",score
-    
-    def detectar_range(self,velas):
-        if len(velas)<20:return None
-        precos=[v['close'] for v in velas]
-        maximo=max(precos[-15:]);minimo=min(precos[-15:])
-        range_pct=((maximo-minimo)/np.mean(precos[-15:]))*100 if np.mean(precos[-15:])>0 else 0
-        if range_pct<0.04:return f"📦 RANGE ESTREITO - Operar nas bordas"
-        elif range_pct<0.08:return f"📦 Range moderado"
-        return None
-    
-    def contar_sequencia(self,velas):
-        if len(velas)<10:return None
-        direcoes=[]
-        for i in range(-8,0):
-            if i>=-len(velas)+1 and velas[i]['close']>velas[i-1]['close']:direcoes.append('ALTA')
-            else:direcoes.append('BAIXA')
-        if not direcoes:return None
-        seq=1
-        for i in range(len(direcoes)-2,-1,-1):
-            if direcoes[i]==direcoes[-1]:seq+=1
-            else:break
-        if seq>=5:return f"⚠️ {seq} velas de {direcoes[-1]}! PROVÁVEL REVERSÃO!"
-        elif seq>=3:return f"📈 {seq} velas de {direcoes[-1]}"
-        return None
-    
-    def analisar_volume(self,velas):
-        if len(velas)<5:return None
-        volumes=[v.get('volume',0) for v in velas[-5:]]
-        media=np.mean(volumes[:-1]);atual=volumes[-1]
-        if media==0:return None
-        razao=atual/media
-        if razao>2.0:return "🔥 Volume EXPLOSIVO"
-        elif razao>1.5:return "📊 Volume ACIMA da média"
-        elif razao>1.0:return "📊 Volume normal"
-        elif razao>0.5:return "⚠️ Volume BAIXO"
-        else:return "🚫 Volume MUITO baixo"
-    
-    def analisar_correlacao(self):
-        if not self.velas_dict:return None
-        pares=list(self.velas_dict.keys())
-        if len(pares)<2:return None
-        correlacoes=[]
-        for i in range(len(pares)):
-            for j in range(i+1,len(pares)):
-                v1=[x['close'] for x in list(self.velas_dict[pares[i]])[-10:]]
-                v2=[x['close'] for x in list(self.velas_dict[pares[j]])[-10:]]
-                if len(v1)>=10 and len(v2)>=10:
-                    corr=np.corrcoef(v1,v2)[0][1]
-                    if abs(corr)>0.7:
-                        correlacoes.append(f"{pares[i]}↔️{pares[j]}:{'🟢JUNTOS' if corr>0 else '🔴OPOSTOS'}")
-        if correlacoes:return "🔗 "+" | ".join(correlacoes)
-        return None
-    
-    def analisar_horario(self):
-        h=datetime.now(FUSO_BR).hour
-        if h in[0,1,2,3,4,5]:return "🌙 Madrugada"
-        elif h in[8,9,10,11]:return "☀️ Manhã"
-        elif h in[14,15,16,17]:return "🔥 Tarde"
-        elif h in[20,21,22]:return "🌆 Noite"
-        else:return "🕐 Horário normal"
-    
-    def classificar_sinal(self,confianca,estrategias,pavio_ok,tendencia):
-        nota=0
-        if confianca>=75:nota+=3
-        elif confianca>=65:nota+=2
-        elif confianca>=55:nota+=1
-        if estrategias>=4:nota+=3
-        elif estrategias>=3:nota+=1
-        if pavio_ok:nota+=2
-        if 'NEUTRA' not in tendencia:nota+=2
-        if nota>=8:return "🅰️ EXCELENTE"
-        elif nota>=6:return "🅱️ BOM"
-        elif nota>=4:return "🅲️ REGULAR"
-        else:return "🅳️ ARRISCADO"
-    
     def ler_grafico(self,velas,direcao):
-        if len(velas)<5:return"Poucas velas",[],True
-        obs=[];v=velas[-1];v1=velas[-2]
+        if len(velas)<5:return "Poucas velas",[]
+        observacoes=[];v=velas[-1];v1=velas[-2]
         corpo=abs(v['close']-v['open']);range_total=v['high']-v['low']
-        pavio_sup=v['high']-max(v['close'],v['open']);pavio_inf=min(v['close'],v['open'])-v['low']
-        pavio_ok=True
-        
-        if direcao=='CALL':
-            if pavio_inf>corpo*2 and pavio_sup<corpo*0.3:obs.append("🔨 Martelo - forte compra")
-            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']>v1['open']:obs.append("📈 Engolfo de alta")
-            if pavio_sup>corpo*0.6:obs.append("⚠️ Pavio superior grande");pavio_ok=False
-        else:
-            if pavio_sup>corpo*2 and pavio_inf<corpo*0.3:obs.append("💫 Estrela cadente - forte venda")
-            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']<v1['open']:obs.append("📉 Engolfo de baixa")
-            if pavio_inf>corpo*0.6:obs.append("⚠️ Pavio inferior grande");pavio_ok=False
-        
-        if corpo>range_total*0.6:obs.append("💪 Vela forte")
+        pavio_sup=v['high']-max(v['close'],v['open'])
+        pavio_inf=min(v['close'],v['open'])-v['low']
+        if direcao=='CALL' and pavio_inf>corpo*2 and pavio_sup<corpo*0.3:observacoes.append("🔨 Martelo - forte sinal de compra")
+        elif direcao=='PUT' and pavio_sup>corpo*2 and pavio_inf<corpo*0.3:observacoes.append("💫 Estrela cadente - forte sinal de venda")
+        elif corpo>abs(v1['close']-v1['open'])*1.5:
+            if direcao=='CALL' and v['close']>v1['open']:observacoes.append("📈 Engolfo de alta")
+            elif direcao=='PUT' and v['close']<v1['open']:observacoes.append("📉 Engolfo de baixa")
+        if direcao=='CALL' and pavio_sup>corpo*0.6:observacoes.append("⚠️ Pavio superior grande")
+        elif direcao=='PUT' and pavio_inf>corpo*0.6:observacoes.append("⚠️ Pavio inferior grande")
+        if corpo>range_total*0.6:observacoes.append("💪 Vela forte")
         precos=[x['close'] for x in velas]
         altas=sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
-        if altas>=4:obs.append("📈 Tendência visual de alta")
-        elif altas<=1:obs.append("📉 Tendência visual de baixa")
-        else:obs.append("↔️ Sem direção clara")
-        
-        if not obs:obs.append("✅ Setup neutro")
-        return" | ".join(obs),obs,pavio_ok
+        if altas>=4:observacoes.append("📈 Tendência de alta")
+        elif altas<=1:observacoes.append("📉 Tendência de baixa")
+        else:observacoes.append("↔️ Sem direção clara")
+        if not observacoes:observacoes.append("✅ Setup neutro")
+        return " | ".join(observacoes),observacoes
     
     def explicar_entrada(self,sinal,velas):
-        ativo=sinal['ativo'];direcao=sinal['direcao'];est=sinal.get('estrategias',0);conf=sinal.get('confianca',0)
+        ativo=sinal['ativo'];direcao=sinal['direcao']
+        est=sinal.get('estrategias',0);conf=sinal.get('confianca',0)
         detalhes=sinal.get('detalhes',{})
-        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
+        leitura,obs=self.ler_grafico(velas,direcao)
         tendencia=self.tendencias.get(ativo,'NEUTRA')
-        nota=self.classificar_sinal(conf,est,pavio_ok,tendencia)
-        termometro,score_term=self.termometro(velas)
-        range_msg=self.detectar_range(velas)
-        sequencia=self.contar_sequencia(velas)
-        volume=self.analisar_volume(velas)
-        correlacao=self.analisar_correlacao()
-        horario=self.analisar_horario()
         concordaram=[k for k,v in detalhes.items() if '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
-        return f"""👨‍🏫 *ANÁLISE DO TRADER PROFISSIONAL*
+        return f"""👨‍🏫 *ANÁLISE DO TRADER*
 
 📊 *Mercado:* {tendencia}
-🌡️ *Termômetro:* {termometro}
-🕐 *Horário:* {horario}
 👁️ *Gráfico:* {leitura}
-📋 *Nota do Sinal:* {nota}
 ✅ *Estratégias ({est}/5):* {', '.join(concordaram) if concordaram else 'Nenhuma'}
-🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança
-🔍 *Range:* {range_msg if range_msg else 'Normal'} | *Sequência:* {sequencia if sequencia else 'Normal'} | *Volume:* {volume if volume else 'Normal'}"""
+🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"""
     
     def explicar_loss(self,sinal,velas):
-        ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
-        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
-        causas=[]
-        v=velas[-1];corpo=abs(v['close']-v['open'])
+        ativo=sinal['ativo'];direcao=sinal['direcao']
+        conf=sinal.get('confianca',0);detalhes=sinal.get('detalhes',{})
+        leitura,obs=self.ler_grafico(velas,direcao)
+        causas=[];v=velas[-1];corpo=abs(v['close']-v['open'])
         if corpo>0:
-            if direcao=='CALL' and(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
-            elif direcao=='PUT' and(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
+            if direcao=='CALL':
+                if(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
+            else:
+                if(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
         tendencia=self.tendencias.get(ativo,'NEUTRA')
         if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência de baixa")
         elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência de alta")
         if conf<58:causas.append("📊 Confiança baixa")
-        if 'NEUTRA' in tendencia:causas.append("↔️ Mercado lateral")
-        sequencia=self.contar_sequencia(velas)
-        if sequencia and 'REVERSÃO' in sequencia:causas.append("🔄 Possível reversão por sequência")
-        if not causas:causas.append("🎲 Movimento aleatório do mercado")
-        self.losses.append({'ativo':ativo,'direcao':direcao,'confianca':conf,'causas':causas,'hora':datetime.now(FUSO_BR).hour})
-        licao="Seguir o plano e gerenciar risco"
-        if 'pavio' in str(causas).lower():licao="Sempre verificar pavios antes de entrar"
-        elif 'tendência' in str(causas).lower():licao="Nunca operar contra a tendência principal"
-        elif 'confiança' in str(causas).lower():licao="Esperar sinais com confiança mais alta"
-        elif 'lateral' in str(causas).lower():licao="Evitar operar em mercado lateral"
-        elif 'reversão' in str(causas).lower():licao="Respeitar sequências longas de velas"
+        if not causas:causas.append("🎲 Movimento aleatório")
+        concordaram=[k for k,v in detalhes.items() if '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
         return f"""🧠 *ANÁLISE DO LOSS*
 
 🔴 {ativo}-OTC {direcao} | {conf:.0f}%
-👁️ *Gráfico:* {leitura}
-🚫 *Causas Detectadas:*
-{chr(10).join(f'• {c}' for c in causas)}
-📚 *Lição do Professor:* {licao}"""
+🚫 *Causas:* {', '.join(causas)}
+📋 *Estratégias:* {len(concordaram)}/5
+💡 *Lição:* {'Evitar contra tendência' if 'tendência' in str(causas).lower() else 'Esperar mais confiança' if conf<58 else 'Seguir o plano'}"""
     
     def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
 
@@ -516,12 +394,6 @@ class Bot:
         dia=dias.get(agora.strftime('%A'),'')
         w=self.p.w;g1=self.p.g1;l=self.p.l;total=max(w+l,1);tx=round((w/total)*100,1)
         lucro=round(w*1.6+g1*0.4-l*5,2)
-        melhor_h=None;melhor_tx=0
-        for h,data_h in self.professor.performance_horario.items():
-            if data_h['total']>=3:
-                tx_h=data_h['wins']/data_h['total']*100
-                if tx_h>melhor_tx:melhor_tx=tx_h;melhor_h=h
-        melhor_p=max(self.professor.stats_pares,key=lambda p:self.professor.stats_pares[p]['taxa'])
         msg=f"""📊 *PLACAR DIÁRIO FINALIZADO*
 
 🗓️ *{data} ({dia})*
@@ -536,15 +408,13 @@ class Bot:
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
-├──────────────────────────┤
-│ ⭐ Melhor horário: {melhor_h}h ({melhor_tx:.0f}%) │
-│ 🏆 Melhor par: {melhor_p} ({self.professor.stats_pares[melhor_p]['taxa']}%) │
 └──────────────────────────┘
 
 🔄 *Placar zerado!*"""
         self.tg.send(msg)
         print(f"\n{C.GOLD}╔══════════════════════════════╗{C.E}")
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
+        print(f"{C.GOLD}║ 🗓️ {data} ({dia})     ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
         self.p.zerar();self.sinais=0
@@ -632,13 +502,13 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Profissional...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Professor...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar();await self.catalogacao_inicial()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Profissional | 🏆 3/5 = Entra | 🔄 Gale 1\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFISSIONAL*\n👨‍🏫 Explica cada decisão\n🏆 3/5 Estratégias = Entra\n🔄 Gale 1\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 🔄 Gale 1\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Explica cada decisão\n🏆 3/5 Estratégias = Entra\n🔄 Gale 1\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -647,7 +517,7 @@ class Bot:
                     self.fechar_dia();self.placar_enviado=True
                 if agora.day!=self.ultimo_dia:self.ultimo_dia=agora.day;self.placar_enviado=False
                 if agora.second in[0,30]:
-                    try:self.iq.atualizar();self.professor.atualizar_dados(self.iq.velas)
+                    try:self.iq.atualizar();self.professor.atualizar_tendencias(self.iq.velas)
                     except:self.iq.ok=False
                 if not self.op:
                     try:
