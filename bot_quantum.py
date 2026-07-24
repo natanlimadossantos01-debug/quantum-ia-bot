@@ -2,10 +2,11 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Professor | Explica Tudo       ║
+║   👨‍🏫 Trader Profissional | Explica Tudo     ║
 ║   👁️ Lê Gráfico | 🧠 Ensina Alunos         ║
 ║   🏆 3/5 Confirmam = Entra                 ║
 ║   🔄 Gale 1 | 📊 Placar Diário             ║
+║   📋 Lista de Operações Diárias            ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
 ╚══════════════════════════════════════════════╝
 """
@@ -27,8 +28,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Professor | 🏆 3/5 = Entra     ║")
-    print(f"║   👁️ Lê Gráfico | 🧠 Ensina Alunos         ║")
+    print(f"║   👨‍🏫 Trader Profissional | Explica Tudo     ║")
+    print(f"║   🏆 3/5 = Entra | 📋 Lista Diária         ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -71,14 +72,22 @@ from iqoptionapi.stable_api import IQ_Option
 
 ATIVOS_OTC={"EURUSD":"EURUSD-OTC","GBPUSD":"GBPUSD-OTC","EURGBP":"EURGBP-OTC"}
 
+# ═══════════════════════════════════════════
+# PLACAR (CORRIGIDO)
+# ═══════════════════════════════════════════
 class Placar:
-    def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20)
+    def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20);self.ops=[]
     def win(self,g=0):
-        self.w+=1
-        if g==0:self.s.append('🟢');return"✅ WIN"
+        if g==0:self.w+=1;self.s.append('🟢');return"✅ WIN"
         else:self.g1+=1;self.s.append('🟡');return"✅ WIN GALE 1"
     def loss(self):self.l+=1;self.s.append('🔴');return"❌ LOSS"
-    def zerar(self):self.w=0;self.l=0;self.g1=0;self.s.clear()
+    def registrar(self,ativo,direcao,conf,resultado,is_gale=False):
+        agora=datetime.now(FUSO_BR)
+        hora=agora.strftime('%H:%M')
+        sufixo="¹" if is_gale else ""
+        emoji="✅️" if "WIN" in resultado else "🔴"
+        self.ops.append(f"M1 {ativo}-OTC {direcao} {hora} {emoji}{sufixo}")
+    def zerar(self):self.w=0;self.l=0;self.g1=0;self.s.clear();self.ops.clear()
 
 class Telegram:
     def __init__(self,t,c):self.u=f"https://api.telegram.org/bot{t}";self.c=c
@@ -209,7 +218,7 @@ class QuantumIA:
     def __init__(self):
         self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
         self.raio_negro=RaioNegro();self.tsunami=Tsunami()
-        self.min_estrategias=3  # 🏆 3/5 CONFIRMAM
+        self.min_estrategias=3
     def analisar_completo(self,v):
         try:
             if len(v)<30:return None,0,0,{}
@@ -244,13 +253,17 @@ class QuantumIA:
         return melhor
 
 # ═══════════════════════════════════════════
-# 👨‍🏫 TRADER PROFESSOR
+# 👨‍🏫 TRADER PROFISSIONAL
 # ═══════════════════════════════════════════
 class TraderProfessor:
     def __init__(self):
         self.historico=deque(maxlen=50)
         self.stats_pares={nome:{'wins':0,'losses':0,'total':0,'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias={nome:"NEUTRA" for nome in ATIVOS_OTC}
+        self.velas_dict={}
+        self.losses=deque(maxlen=50)
+        self.performance_horario={h:{'wins':0,'total':0} for h in range(24)}
+        self.performance_dia={d:{'wins':0,'total':0} for d in ['Seg','Ter','Qua','Qui','Sex','Sab','Dom']}
     
     def atualizar_stats(self,ativo,resultado):
         if ativo in self.stats_pares:
@@ -259,8 +272,16 @@ class TraderProfessor:
             else:self.stats_pares[ativo]['losses']+=1
             t=self.stats_pares[ativo]['total'];w=self.stats_pares[ativo]['wins']
             self.stats_pares[ativo]['taxa']=round((w/t)*100,1) if t>0 else 0
+        h=datetime.now(FUSO_BR).hour
+        self.performance_horario[h]['total']+=1
+        if resultado=='win':self.performance_horario[h]['wins']+=1
+        dias=['Seg','Ter','Qua','Qui','Sex','Sab','Dom']
+        d=dias[datetime.now(FUSO_BR).weekday()]
+        self.performance_dia[d]['total']+=1
+        if resultado=='win':self.performance_dia[d]['wins']+=1
     
-    def atualizar_tendencias(self,velas_dict):
+    def atualizar_dados(self,velas_dict):
+        self.velas_dict=velas_dict
         for nome,velas in velas_dict.items():
             if len(velas)>=21:
                 closes=[v['close'] for v in list(velas)[-21:]]
@@ -270,32 +291,32 @@ class TraderProfessor:
                 else:self.tendencias[nome]="NEUTRA ➡️"
     
     def ler_grafico(self,velas,direcao):
-        if len(velas)<5:return "Poucas velas",[]
-        observacoes=[];v=velas[-1];v1=velas[-2]
+        if len(velas)<5:return"Poucas velas",[],True
+        obs=[];v=velas[-1];v1=velas[-2]
         corpo=abs(v['close']-v['open']);range_total=v['high']-v['low']
-        pavio_sup=v['high']-max(v['close'],v['open'])
-        pavio_inf=min(v['close'],v['open'])-v['low']
-        if direcao=='CALL' and pavio_inf>corpo*2 and pavio_sup<corpo*0.3:observacoes.append("🔨 Martelo - forte sinal de compra")
-        elif direcao=='PUT' and pavio_sup>corpo*2 and pavio_inf<corpo*0.3:observacoes.append("💫 Estrela cadente - forte sinal de venda")
-        elif corpo>abs(v1['close']-v1['open'])*1.5:
-            if direcao=='CALL' and v['close']>v1['open']:observacoes.append("📈 Engolfo de alta")
-            elif direcao=='PUT' and v['close']<v1['open']:observacoes.append("📉 Engolfo de baixa")
-        if direcao=='CALL' and pavio_sup>corpo*0.6:observacoes.append("⚠️ Pavio superior grande")
-        elif direcao=='PUT' and pavio_inf>corpo*0.6:observacoes.append("⚠️ Pavio inferior grande")
-        if corpo>range_total*0.6:observacoes.append("💪 Vela forte")
+        pavio_sup=v['high']-max(v['close'],v['open']);pavio_inf=min(v['close'],v['open'])-v['low']
+        pavio_ok=True
+        if direcao=='CALL':
+            if pavio_inf>corpo*2 and pavio_sup<corpo*0.3:obs.append("🔨 Martelo")
+            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']>v1['open']:obs.append("📈 Engolfo alta")
+            if pavio_sup>corpo*0.6:obs.append("⚠️ Pavio superior");pavio_ok=False
+        else:
+            if pavio_sup>corpo*2 and pavio_inf<corpo*0.3:obs.append("💫 Estrela cadente")
+            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']<v1['open']:obs.append("📉 Engolfo baixa")
+            if pavio_inf>corpo*0.6:obs.append("⚠️ Pavio inferior");pavio_ok=False
+        if corpo>range_total*0.6:obs.append("💪 Vela forte")
         precos=[x['close'] for x in velas]
         altas=sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
-        if altas>=4:observacoes.append("📈 Tendência de alta")
-        elif altas<=1:observacoes.append("📉 Tendência de baixa")
-        else:observacoes.append("↔️ Sem direção clara")
-        if not observacoes:observacoes.append("✅ Setup neutro")
-        return " | ".join(observacoes),observacoes
+        if altas>=4:obs.append("📈 Tendência alta")
+        elif altas<=1:obs.append("📉 Tendência baixa")
+        else:obs.append("↔️ Sem direção")
+        if not obs:obs.append("✅ Setup neutro")
+        return" | ".join(obs),obs,pavio_ok
     
     def explicar_entrada(self,sinal,velas):
-        ativo=sinal['ativo'];direcao=sinal['direcao']
-        est=sinal.get('estrategias',0);conf=sinal.get('confianca',0)
+        ativo=sinal['ativo'];direcao=sinal['direcao'];est=sinal.get('estrategias',0);conf=sinal.get('confianca',0)
         detalhes=sinal.get('detalhes',{})
-        leitura,obs=self.ler_grafico(velas,direcao)
+        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
         tendencia=self.tendencias.get(ativo,'NEUTRA')
         concordaram=[k for k,v in detalhes.items() if '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
         return f"""👨‍🏫 *ANÁLISE DO TRADER*
@@ -306,27 +327,28 @@ class TraderProfessor:
 🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"""
     
     def explicar_loss(self,sinal,velas):
-        ativo=sinal['ativo'];direcao=sinal['direcao']
-        conf=sinal.get('confianca',0);detalhes=sinal.get('detalhes',{})
-        leitura,obs=self.ler_grafico(velas,direcao)
-        causas=[];v=velas[-1];corpo=abs(v['close']-v['open'])
+        ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
+        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
+        causas=[]
+        v=velas[-1];corpo=abs(v['close']-v['open'])
         if corpo>0:
-            if direcao=='CALL':
-                if(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
-            else:
-                if(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
+            if direcao=='CALL' and(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
+            elif direcao=='PUT' and(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
         tendencia=self.tendencias.get(ativo,'NEUTRA')
-        if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência de baixa")
-        elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência de alta")
+        if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência")
+        elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência")
         if conf<58:causas.append("📊 Confiança baixa")
         if not causas:causas.append("🎲 Movimento aleatório")
-        concordaram=[k for k,v in detalhes.items() if '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
+        self.losses.append({'ativo':ativo,'direcao':direcao,'confianca':conf,'causas':causas,'hora':datetime.now(FUSO_BR).hour})
+        licao="Seguir o plano"
+        if 'pavio' in str(causas).lower():licao="Verificar pavios antes de entrar"
+        elif 'tendência' in str(causas).lower():licao="Não operar contra tendência"
+        elif 'confiança' in str(causas).lower():licao="Esperar confiança mais alta"
         return f"""🧠 *ANÁLISE DO LOSS*
 
 🔴 {ativo}-OTC {direcao} | {conf:.0f}%
 🚫 *Causas:* {', '.join(causas)}
-📋 *Estratégias:* {len(concordaram)}/5
-💡 *Lição:* {'Evitar contra tendência' if 'tendência' in str(causas).lower() else 'Esperar mais confiança' if conf<58 else 'Seguir o plano'}"""
+📚 *Lição:* {licao}"""
     
     def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
 
@@ -392,8 +414,17 @@ class Bot:
         agora=datetime.now(FUSO_BR);data=agora.strftime('%d/%m/%Y')
         dias={'Monday':'Segunda','Tuesday':'Terça','Wednesday':'Quarta','Thursday':'Quinta','Friday':'Sexta','Saturday':'Sábado','Sunday':'Domingo'}
         dia=dias.get(agora.strftime('%A'),'')
-        w=self.p.w;g1=self.p.g1;l=self.p.l;total=max(w+l,1);tx=round((w/total)*100,1)
+        w=self.p.w;g1=self.p.g1;l=self.p.l
+        total_profit=w+g1;total_trades=total_profit+l
+        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
         lucro=round(w*1.6+g1*0.4-l*5,2)
+        
+        # 📋 Lista de operações no formato solicitado
+        lista_ops=""
+        if self.p.ops:
+            for op in self.p.ops[-50:]:
+                lista_ops+=op+"\n"
+        
         msg=f"""📊 *PLACAR DIÁRIO FINALIZADO*
 
 🗓️ *{data} ({dia})*
@@ -401,20 +432,22 @@ class Bot:
 
 ┌──────────────────────────┐
 │ ⚛️ QUANTUM IA M1        │
-│ 🟢 Wins: {w}              │
+│ 🟢 Wins Diretos: {w}      │
 │ 🟡 Gale 1: {g1}            │
 │ 🔴 Losses: {l}            │
-│ 📨 Sinais: {w+g1+l}       │
+│ 📨 Total Sinais: {total_trades} │
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
 └──────────────────────────┘
 
+📋 *Operações do Dia:*
+{lista_ops if lista_ops else 'Nenhuma operação'}
+
 🔄 *Placar zerado!*"""
         self.tg.send(msg)
         print(f"\n{C.GOLD}╔══════════════════════════════╗{C.E}")
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
-        print(f"{C.GOLD}║ 🗓️ {data} ({dia})     ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
         self.p.zerar();self.sinais=0
@@ -438,9 +471,13 @@ class Bot:
 🔄 1 recuperação (Gale 1)!"""
 
     def fmt_corr(self,r,s):
+        total_profit=self.p.w+self.p.g1
+        total_trades=total_profit+self.p.l
+        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
         return f"""{r}
 📊 {s['ativo']}-OTC | {s['direcao']} {'🟢' if s['direcao']=='CALL' else '🔴'}
-📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L"""
+📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L
+🎯 Assertividade: {tx}%"""
 
     def bateu(self,d,p,v):return v['high']>p if d=='CALL' else v['low']<p
 
@@ -454,7 +491,7 @@ class Bot:
         except:pass
 
     async def corrigir(self,sinal):
-        at=sinal['ativo'];d=sinal['direcao']
+        at=sinal['ativo'];d=sinal['direcao'];conf=sinal.get('confianca',0)
         try:
             await self.esperar(8);v=self.iq.velas[at]
             if len(v)<2:self.op=False;return
@@ -463,6 +500,7 @@ class Bot:
             await self.esperar(5);v=self.iq.velas[at]
             if len(v)>0 and self.bateu(d,pc,v[-1]):
                 r=self.p.win(0);print(f"  ✅ {r}")
+                self.p.registrar(at,d,conf,"WIN")
                 self.tg.send(self.fmt_corr(r,sinal))
                 self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
                 self.op=False;return
@@ -471,10 +509,12 @@ class Bot:
             print(f"  🔄 GALE 1 | OPEN:{pg:.5f}");await self.esperar(5);v=self.iq.velas[at]
             if len(v)>0 and self.bateu(d,pg,v[-1]):
                 r=self.p.win(1);print(f"  ✅ {r}")
+                self.p.registrar(at,d,conf,"WIN GALE 1",is_gale=True)
                 self.tg.send(self.fmt_corr(r,sinal))
                 self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
                 self.op=False;return
             print(f"  ❌ GALE 1");r=self.p.loss();print(f"  🔴 {r}")
+            self.p.registrar(at,d,conf,"LOSS")
             self.tg.send(self.fmt_corr(r,sinal))
             self.professor.registrar('loss');self.professor.atualizar_stats(at,'loss')
             explicacao=self.professor.explicar_loss(sinal,self.iq.velas[at])
@@ -483,32 +523,15 @@ class Bot:
             self.op=False
         except Exception as e:print(f"  ❌ {e}");self.op=False
 
-    async def catalogacao_inicial(self):
-        print(f"\n  {C.GOLD}📊 CATALOGAÇÃO INICIAL (80 velas){C.E}")
-        for nome in ATIVOS_OTC:
-            velas=self.iq.velas[nome]
-            if len(velas)<35:print(f"  {C.Y}⚠️ {nome}: Poucas velas{C.E}");continue
-            wins=0;total=0
-            for i in range(35,len(velas)-1):
-                janela=list(velas)[i-35:i+1];d,cf,num,det=self.m.analisar_completo(janela)
-                if d:
-                    total+=1;vela_seguinte=list(velas)[i+1]
-                    if self.bateu(d,vela_seguinte['open'],vela_seguinte):wins+=1
-            if total>0:
-                self.professor.stats_pares[nome]['wins']=wins
-                self.professor.stats_pares[nome]['total']=total
-                self.professor.stats_pares[nome]['taxa']=round((wins/total)*100,1)
-                print(f"  {C.G}✅ {nome}: {wins}/{total} ({self.professor.stats_pares[nome]['taxa']}%){C.E}")
-
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Professor...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Profissional...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
-        self.iq.atualizar();await self.catalogacao_inicial()
+        self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 🔄 Gale 1\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Explica cada decisão\n🏆 3/5 Estratégias = Entra\n🔄 Gale 1\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Profissional | 🏆 3/5 = Entra | 📋 Lista Diária\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFISSIONAL*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n📋 Lista Diária de Operações\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -517,7 +540,7 @@ class Bot:
                     self.fechar_dia();self.placar_enviado=True
                 if agora.day!=self.ultimo_dia:self.ultimo_dia=agora.day;self.placar_enviado=False
                 if agora.second in[0,30]:
-                    try:self.iq.atualizar();self.professor.atualizar_tendencias(self.iq.velas)
+                    try:self.iq.atualizar();self.professor.atualizar_dados(self.iq.velas)
                     except:self.iq.ok=False
                 if not self.op:
                     try:
@@ -535,7 +558,9 @@ class Bot:
                     except:pass
                 if agora.second in[0,30]:
                     try:
-                        w,l,g1=self.p.w,self.p.l,self.p.g1;t=max(w+l,1);tx=round((w/t)*100,1)
+                        w,l,g1=self.p.w,self.p.l,self.p.g1
+                        total_profit=w+g1;total_trades=total_profit+l
+                        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
                         lucro=round(w*1.6+g1*0.4-l*5,2)
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}")
@@ -543,7 +568,9 @@ class Bot:
                     except:pass
                 await asyncio.sleep(3)
             except KeyboardInterrupt:
-                clear();w,l,g1=self.p.w,self.p.l,self.p.g1;t=max(w+l,1);tx=round((w/t)*100,1)
+                clear();w,l,g1=self.p.w,self.p.l,self.p.g1
+                total_profit=w+g1;total_trades=total_profit+l
+                tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
                 lucro=round(w*1.6+g1*0.4-l*5,2)
                 print(f"\n👋 🟢{w}W 🟡{g1}G1 🔴{l}L | 🎯{tx}% | 💰+R${lucro}\n")
                 self.tg.send(f"⚠️ *Desligado*\n🟢{w}W 🟡{g1}G1 🔴{l}L\n🎯{tx}%\n💰+R${lucro}")
