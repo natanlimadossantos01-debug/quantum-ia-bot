@@ -2,11 +2,11 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Profissional | Explica Tudo     ║
+║   👨‍🏫 Trader Professor | Análise Completa     ║
 ║   👁️ Lê Gráfico | 🧠 Ensina Alunos         ║
 ║   🏆 3/5 Confirmam = Entra                 ║
-║   🔄 Gale 1 | 📊 Placar Diário             ║
-║   📋 Lista de Operações Diárias            ║
+║   🔄 Gale 1 | 📊 Placar Corrigido          ║
+║   📋 Lista Diária de Operações             ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
 ╚══════════════════════════════════════════════╝
 """
@@ -28,8 +28,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Profissional | Explica Tudo     ║")
-    print(f"║   🏆 3/5 = Entra | 📋 Lista Diária         ║")
+    print(f"║   👨‍🏫 Trader Professor | Ensina Alunos       ║")
+    print(f"║   🏆 3/5 = Entra | 📊 Placar Corrigido     ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -73,7 +73,7 @@ from iqoptionapi.stable_api import IQ_Option
 ATIVOS_OTC={"EURUSD":"EURUSD-OTC","GBPUSD":"GBPUSD-OTC","EURGBP":"EURGBP-OTC"}
 
 # ═══════════════════════════════════════════
-# PLACAR (CORRIGIDO)
+# PLACAR CORRIGIDO
 # ═══════════════════════════════════════════
 class Placar:
     def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20);self.ops=[]
@@ -253,7 +253,7 @@ class QuantumIA:
         return melhor
 
 # ═══════════════════════════════════════════
-# 👨‍🏫 TRADER PROFISSIONAL
+# 👨‍🏫 TRADER PROFESSOR
 # ═══════════════════════════════════════════
 class TraderProfessor:
     def __init__(self):
@@ -262,8 +262,6 @@ class TraderProfessor:
         self.tendencias={nome:"NEUTRA" for nome in ATIVOS_OTC}
         self.velas_dict={}
         self.losses=deque(maxlen=50)
-        self.performance_horario={h:{'wins':0,'total':0} for h in range(24)}
-        self.performance_dia={d:{'wins':0,'total':0} for d in ['Seg','Ter','Qua','Qui','Sex','Sab','Dom']}
     
     def atualizar_stats(self,ativo,resultado):
         if ativo in self.stats_pares:
@@ -272,13 +270,6 @@ class TraderProfessor:
             else:self.stats_pares[ativo]['losses']+=1
             t=self.stats_pares[ativo]['total'];w=self.stats_pares[ativo]['wins']
             self.stats_pares[ativo]['taxa']=round((w/t)*100,1) if t>0 else 0
-        h=datetime.now(FUSO_BR).hour
-        self.performance_horario[h]['total']+=1
-        if resultado=='win':self.performance_horario[h]['wins']+=1
-        dias=['Seg','Ter','Qua','Qui','Sex','Sab','Dom']
-        d=dias[datetime.now(FUSO_BR).weekday()]
-        self.performance_dia[d]['total']+=1
-        if resultado=='win':self.performance_dia[d]['wins']+=1
     
     def atualizar_dados(self,velas_dict):
         self.velas_dict=velas_dict
@@ -419,7 +410,7 @@ class Bot:
         tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
         lucro=round(w*1.6+g1*0.4-l*5,2)
         
-        # 📋 Lista de operações no formato solicitado
+        # 📋 Lista de operações
         lista_ops=""
         if self.p.ops:
             for op in self.p.ops[-50:]:
@@ -525,13 +516,13 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Profissional...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Professor...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Profissional | 🏆 3/5 = Entra | 📋 Lista Diária\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFISSIONAL*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n📋 Lista Diária de Operações\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 📊 Placar Corrigido\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n📊 Placar Corrigido\n📋 Lista Diária\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
