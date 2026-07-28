@@ -6,6 +6,7 @@
 ║   🏆 5 Estratégias Avançadas = Sinais de Alta Precisão   ║
 ║   🔄 Correções ENVIADAS no Telegram                      ║
 ║   📊 3 Ativos OTC | ☁️ Cloud Ready                       ║
+║   ⚡ CARREGA 52 VELAS IMEDIATAMENTE                      ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 import asyncio
@@ -38,7 +39,7 @@ def banner():
     print(f"║   ⚛️  Q U A N T U M   I A   M 1  -  V I P                     ║")
     print(f"║   🏆 SISTEMA VIP | Estratégias Profissionais                  ║")
     print(f"║   🔄 5 Estratégias = Sinais de Alta Precisão                  ║")
-    print(f"║   📊 3 Ativos OTC | ☁️ Cloud Ready                           ║")
+    print(f"║   📊 3 Ativos OTC | ⚡ Velas Imediatas                        ║")
     print(f"╚══════════════════════════════════════════════════════════════╝{C.E}")
 
 # ════════════════════════════════════════════════════════════
@@ -92,7 +93,7 @@ EMAIL = cfg['email']; SENHA = cfg['senha']
 from iqoptionapi.stable_api import IQ_Option
 
 # ════════════════════════════════════════════════════════════
-# ✅ 3 ATIVOS OTC - IGUAL AO ORIGINAL
+# ✅ 3 ATIVOS OTC
 # ════════════════════════════════════════════════════════════
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
@@ -831,7 +832,7 @@ class TraderProfessor:
         self.historico.append(1 if resultado == 'win' else 0)
 
 # ════════════════════════════════════════════════════════════
-# IQ API
+# IQ API - MODIFICADO PARA CARREGAR VELAS IMEDIATAMENTE
 # ════════════════════════════════════════════════════════════
 class IQAPI:
     def __init__(self, e, s, a):
@@ -865,29 +866,41 @@ class IQAPI:
         return False
         
     def obter(self, ativo_id, qtd=80):
+        """OBTÉM VELAS PASSADAS IMEDIATAMENTE"""
         for retry in range(3):
             if not self.ok and not self.conectar():
                 return 0
             try:
-                c = self.api.get_candles(ativo_id, 60, qtd, time.time())
+                # ⚡ PEGA VELAS DO PASSADO (já fechadas)
+                tempo_atual = time.time()
+                # Pega velas dos últimos minutos (já fechadas)
+                tempo_passado = tempo_atual - (qtd * 65)  # 65 segundos por vela
+                
+                c = self.api.get_candles(ativo_id, 60, qtd, tempo_passado)
+                
                 if c and len(c) > 0:
                     nome = [k for k, v in self.a.items() if v == ativo_id][0]
                     self.velas[nome].clear()
+                    
+                    # Filtra apenas velas COMPLETAS (já fechadas)
                     for x in c[-qtd:]:
                         if isinstance(x, dict):
                             try:
-                                self.velas[nome].append({
-                                    'time': datetime.fromtimestamp(x.get('from', 0), FUSO_BR),
-                                    'open': float(x['open']),
-                                    'high': float(x['max']),
-                                    'low': float(x['min']),
-                                    'close': float(x['close']),
-                                    'volume': int(x.get('volume', 0))
-                                })
+                                tempo_vela = x.get('from', 0)
+                                # Só adiciona se a vela já fechou
+                                if tempo_vela < time.time() - 55:
+                                    self.velas[nome].append({
+                                        'time': datetime.fromtimestamp(tempo_vela, FUSO_BR),
+                                        'open': float(x['open']),
+                                        'high': float(x['max']),
+                                        'low': float(x['min']),
+                                        'close': float(x['close']),
+                                        'volume': int(x.get('volume', 0))
+                                    })
                             except:
                                 pass
-                    return len(c)
-            except:
+                    return len(self.velas[nome])
+            except Exception as e:
                 self.ok = False
                 if retry < 2:
                     time.sleep(3)
@@ -895,6 +908,7 @@ class IQAPI:
         return 0
         
     def atualizar(self):
+        """Atualiza com velas novas"""
         if not self.ok:
             self.conectar()
         for n, i in self.a.items():
@@ -937,7 +951,6 @@ class Bot:
         return '█' * p + '░' * (10 - p)
         
     def enviar_placar_final(self):
-        """Envia o placar final quando o bot é desligado"""
         agora = datetime.now(FUSO_BR)
         stats = self.placar.get_stats()
         
@@ -1019,7 +1032,7 @@ class Bot:
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
         
     # ════════════════════════════════════════════════════════
-    # 📤 FORMATO DO SINAL - IGUAL AO ORIGINAL
+    # 📤 FORMATO DO SINAL
     # ════════════════════════════════════════════════════════
     def fmt_sinal(self, s):
         agora = datetime.now(FUSO_BR)
@@ -1037,7 +1050,10 @@ class Bot:
 🧠 Estratégias: {est}/5
 
 ⚠️ Entrar somente no horário marcado.
-🔄 1 recuperação (Gale 1)!"""
+🔄 1 recuperação (Gale 1)!
+
+📊 ESTRATÉGIAS QUE CONFIRMARAM:
+🏯 Ichimoku | 🏔️ S/R | ⚡ Momentum | 🎯 Price Action | 🌊 Volatilidade"""
 
     # ════════════════════════════════════════════════════════
     # 📤 CORREÇÃO
@@ -1169,17 +1185,38 @@ class Bot:
     async def run(self):
         banner()
         
-        # 🎯 MENSAGEM DE INICIALIZAÇÃO PERSONALIZADA
+        # 🎯 MENSAGEM DE INICIALIZAÇÃO
         print(f"\n{C.MAGENTA}{C.B}╔════════════════════════════════════════════════════════╗{C.E}")
         print(f"{C.MAGENTA}{C.B}║         🚀 SISTEMA VIP LIGADO! 🚀                     ║{C.E}")
         print(f"{C.MAGENTA}{C.B}║                                                       ║{C.E}")
         print(f"{C.MAGENTA}{C.B}║      📊 ANALISANDO MERCADO...                         ║{C.E}")
         print(f"{C.MAGENTA}{C.B}║                                                       ║{C.E}")
         print(f"{C.MAGENTA}{C.B}║      💰 BORA FAZER DINHEIRO! 💰                      ║{C.E}")
+        print(f"{C.MAGENTA}{C.B}║                                                       ║{C.E}")
+        print(f"{C.MAGENTA}{C.B}║      ⚡ CARREGANDO 52 VELAS PASSADAS...               ║{C.E}")
         print(f"{C.MAGENTA}{C.B}╚════════════════════════════════════════════════════════╝{C.E}\n")
         
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  {C.G}🏆 ESTRATÉGIAS ATIVAS:{C.E}")
+        
+        if not self.iq.conectar():
+            print(f"  ❌ Falha conexão IQ Option!")
+            self.tg.send("❌ *ERRO:* Falha ao conectar com IQ Option!")
+            return
+            
+        print(f"  {C.G}✅ Conectado à IQ Option{C.E}")
+        
+        # ⚡ CARREGA VELAS PASSADAS IMEDIATAMENTE
+        print(f"\n  {C.C}📊 Carregando velas passadas...{C.E}")
+        self.iq.atualizar()
+        
+        # Mostra quantas velas foram carregadas
+        print(f"\n  {C.G}📊 VELAS CARREGADAS:{C.E}")
+        for ativo in ATIVOS_OTC:
+            velas = self.iq.velas[ativo]
+            status = "✅" if len(velas) >= 52 else "⚠️"
+            print(f"     {status} {ativo}: {len(velas)} velas")
+            
+        print(f"\n  {C.G}🏆 ESTRATÉGIAS ATIVAS:{C.E}")
         print(f"     🏯 Ichimoku (Japonesa)")
         print(f"     🏔️ S/R + Ordem Flow")
         print(f"     ⚡ Momentum Pro")
@@ -1188,18 +1225,12 @@ class Bot:
         print(f"  {C.G}📤 Correções enviadas no Telegram após cada sinal{C.E}\n")
         
         # Envia mensagem VIP no Telegram
-        self.tg.send(f"🚀 *SISTEMA VIP LIGADO!*\n\n📊 *Analisando Mercado...*\n💰 *BORA FAZER DINHEIRO!*\n\n⚛️ Quantum IA M1 VIP\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n\n🏆 *5 Estratégias Avançadas:*\n🏯 Ichimoku\n🏔️ S/R\n⚡ Momentum\n🎯 Price Action\n🌊 Volatilidade")
+        self.tg.send(f"🚀 *SISTEMA VIP LIGADO!*\n\n📊 *Analisando Mercado...*\n💰 *BORA FAZER DINHEIRO!*\n⚡ *52 velas carregadas!*\n\n⚛️ Quantum IA M1 VIP\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n\n🏆 *5 Estratégias Avançadas:*\n🏯 Ichimoku\n🏔️ S/R\n⚡ Momentum\n🎯 Price Action\n🌊 Volatilidade")
         
-        if not self.iq.conectar():
-            print(f"  ❌ Falha conexão IQ Option!")
-            self.tg.send("❌ *ERRO:* Falha ao conectar com IQ Option!")
-            return
-            
-        self.iq.atualizar()
         self.ultimo_dia = datetime.now(FUSO_BR).day
         self.iniciado = True
         
-        print(f"\n  ✅ QUANTUM IA PRO | Gerando sinais...\n")
+        print(f"\n  ✅ QUANTUM IA PRO | Gerando sinais imediatamente...\n")
         
         while True:
             try:
@@ -1232,7 +1263,7 @@ class Bot:
                             he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
                             print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias', 0)}/5 | ⏰ {he}")
                             
-                            # 📤 ENVIA SINAL (formato original)
+                            # 📤 ENVIA SINAL
                             self.tg.send(self.fmt_sinal(sinal))
                             
                             # 📤 ENVIA ANÁLISE DO PROFESSOR
