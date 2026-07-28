@@ -8,7 +8,6 @@
 ║   🔄 Gale 1 | 📊 Placar Corrigido          ║
 ║   📋 Lista Diária de Operações             ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
-║   🏆 ESTRATÉGIAS PROFISSIONAIS             ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -31,7 +30,6 @@ def banner():
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   👨‍🏫 Trader Professor | Ensina Alunos       ║")
     print(f"║   🏆 3/5 = Entra | 📊 Placar Corrigido     ║")
-    print(f"║   🏆 ESTRATÉGIAS PROFISSIONAIS             ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -98,542 +96,164 @@ class Telegram:
         except:pass
 
 # ═══════════════════════════════════════════
-# 🏆 ESTRATÉGIA 1: ICHIMOKU (Japonesa)
+# 5 ESTRATÉGIAS
 # ═══════════════════════════════════════════
-class Ichimoku:
-    def __init__(self):
-        self.nome = "🏯 Ichimoku"
-        
-    def calcular_linhas(self, velas):
-        precos = [v['close'] for v in velas]
-        
-        if len(precos) >= 9:
-            tenkan = (max(precos[-9:]) + min(precos[-9:])) / 2
-        else:
-            tenkan = precos[-1]
-            
-        if len(precos) >= 26:
-            kijun = (max(precos[-26:]) + min(precos[-26:])) / 2
-        else:
-            kijun = precos[-1]
-            
-        senkou_a = (tenkan + kijun) / 2
-        
-        if len(precos) >= 52:
-            senkou_b = (max(precos[-52:]) + min(precos[-52:])) / 2
-        else:
-            senkou_b = precos[-1]
-            
-        return {'tenkan': tenkan, 'kijun': kijun, 'senkou_a': senkou_a, 'senkou_b': senkou_b}
-        
-    def analisar(self, velas):
+class Mortalha:
+    def sma(self,d,p):
         try:
-            if len(velas) < 52:
-                return None, 0
-                
-            linhas = self.calcular_linhas(velas)
-            preco = velas[-1]['close']
-            preco_ant = velas[-2]['close']
-            
-            pontos_call = 0
-            pontos_put = 0
-            
-            if preco > linhas['senkou_a'] and preco > linhas['senkou_b']:
-                pontos_call += 4
-            elif preco < linhas['senkou_a'] and preco < linhas['senkou_b']:
-                pontos_put += 4
-                
-            if linhas['tenkan'] > linhas['kijun']:
-                pontos_call += 3
-                if linhas['tenkan'] > linhas['kijun'] * 1.005:
-                    pontos_call += 1
-            else:
-                pontos_put += 3
-                if linhas['kijun'] > linhas['tenkan'] * 1.005:
-                    pontos_put += 1
-                    
-            if linhas['senkou_a'] > linhas['senkou_b']:
-                pontos_call += 2
-            else:
-                pontos_put += 2
-                
-            if preco > linhas['senkou_a'] and preco_ant <= linhas['senkou_a']:
-                pontos_call += 3
-            elif preco < linhas['senkou_b'] and preco_ant >= linhas['senkou_b']:
-                pontos_put += 3
-                
-            if pontos_call >= 7 and pontos_call > pontos_put:
-                conf = min(65 + (pontos_call - 7) * 3, 92)
-                return 'CALL', conf
-            elif pontos_put >= 7 and pontos_put > pontos_call:
-                conf = min(65 + (pontos_put - 7) * 3, 92)
-                return 'PUT', conf
-                
-            return None, 0
-        except:
-            return None, 0
+            if len(d)>=p:return sum(d[-p:])/p
+            return sum(d)/len(d) if d else 0
+        except:return 0
+    def wma(self,d,p):
+        try:
+            if len(d)<p:return sum(d)/len(d) if d else 0
+            w=np.arange(1,p+1);return np.sum(np.array(d[-p:])*w)/np.sum(w)
+        except:return 0
+    def analisar(self,v):
+        try:
+            if len(v)<30:return None,0
+            c=np.array([x['close'] for x in v]);b1=np.zeros(len(c))
+            for i in range(len(c)):
+                if i>=33:b1[i]=self.sma(c[:i+1],1)-self.sma(c[:i+1],34)
+            b2=np.zeros(len(b1))
+            for i in range(len(b1)):
+                if i>=3:b2[i]=self.wma(b1[:i+1],4)
+            if b1[-1]>b2[-1] and b1[-2]<=b2[-2]:return'CALL',min(45+abs(b1[-1]-b2[-1])*10000,90)
+            if b1[-1]<b2[-1] and b1[-2]>=b2[-2]:return'PUT',min(45+abs(b1[-1]-b2[-1])*10000,90)
+            return None,0
+        except:return None,0
+
+class Formiga:
+    def ema(self,p,pe):
+        try:
+            if len(p)<pe:return sum(p)/len(p) if p else 0
+            return np.mean(p[-pe:])
+        except:return 0
+    def analisar(self,v):
+        try:
+            if len(v)<15:return None,0
+            precos=np.array([x['close'] for x in v])
+            ema5=self.ema(precos,5);ema10=self.ema(precos,10)
+            dif=((ema5-ema10)/ema10)*100 if ema10>0 else 0
+            sc=0;sp=0
+            if dif>0.02:sc+=3
+            elif dif>0.005:sc+=1
+            elif dif<-0.02:sp+=3
+            elif dif<-0.005:sp+=1
+            if sc>=2 and sc>sp:return'CALL',min(50+sc*4,85)
+            if sp>=2 and sp>sc:return'PUT',min(50+sp*4,85)
+            return None,0
+        except:return None,0
+
+class Fortaleza:
+    def rsi(self,p,pe=7):
+        try:
+            if len(p)<pe+1:return 50
+            d=np.diff(list(p[-pe-1:]));g=np.where(d>0,d,0);l=np.where(d<0,-d,0)
+            mg=np.mean(g) if len(g)>0 else 0;mp=np.mean(l) if len(l)>0 else 0
+            if mp==0:return 100
+            return 100-(100/(1+mg/mp))
+        except:return 50
+    def analisar(self,v):
+        try:
+            if len(v)<18:return None,0
+            precos=np.array([x['close'] for x in v])
+            rsi_val=self.rsi(precos)
+            m=np.mean(precos[-10:]) if len(precos)>=10 else np.mean(precos)
+            s=np.std(precos[-10:]) if len(precos)>=10 else 0
+            bs=m+2*s;bi=m-2*s
+            sc=0;sp=0
+            if rsi_val<30:sc+=3
+            elif rsi_val<40:sc+=2
+            if rsi_val>70:sp+=3
+            elif rsi_val>60:sp+=2
+            if precos[-1]<=bi*1.0004:sc+=3
+            if precos[-1]>=bs*0.9996:sp+=3
+            if sc>=4 and sc>sp:return'CALL',min(60+sc*3,90)
+            if sp>=4 and sp>sc:return'PUT',min(60+sp*3,90)
+            return None,0
+        except:return None,0
+
+class RaioNegro:
+    def analisar(self,v):
+        try:
+            if len(v)<12:return None,0
+            precos=np.array([x['close'] for x in v])
+            ema5=np.mean(precos[-5:]) if len(precos)>=5 else precos[-1]
+            ema13=np.mean(precos[-13:]) if len(precos)>=13 else ema5
+            macd=ema5-ema13;sinal=macd*0.5
+            mom=precos[-1]-precos[-3] if len(precos)>=3 else 0
+            sc=0;sp=0
+            if macd>sinal and macd>0:sc+=3
+            elif macd>sinal:sc+=1
+            elif macd<sinal and macd<0:sp+=3
+            elif macd<sinal:sp+=1
+            if mom>0.00003:sc+=3
+            elif mom>0:sc+=1
+            elif mom<-0.00003:sp+=3
+            elif mom<0:sp+=1
+            if sc>=2 and sc>sp:return'CALL',min(48+sc*4,85)
+            if sp>=2 and sp>sc:return'PUT',min(48+sp*4,85)
+            return None,0
+        except:return None,0
+
+class Tsunami:
+    def analisar(self,v):
+        try:
+            if len(v)<12:return None,0
+            precos=np.array([x['close'] for x in v])
+            altas=sum(1 for i in range(-min(5,len(v)-1),0) if precos[i]>precos[i-1])
+            sc=0;sp=0
+            if altas>=3:sc+=3
+            elif altas<=2:sp+=3
+            if sc>=2 and sc>sp:return'CALL',min(50+sc*3,85)
+            if sp>=2 and sp>sc:return'PUT',min(50+sp*3,85)
+            return None,0
+        except:return None,0
 
 # ═══════════════════════════════════════════
-# 🏆 ESTRATÉGIA 2: SUPORTE/RESISTÊNCIA + ORDEM FLOW
-# ═══════════════════════════════════════════
-class SuporteResistencia:
-    def __init__(self):
-        self.nome = "🏔️ S/R + Ordem Flow"
-        
-    def encontrar_niveis(self, velas, periodo=20):
-        altas = [v['high'] for v in velas[-periodo:]]
-        baixas = [v['low'] for v in velas[-periodo:]]
-        
-        resistencia = max(altas)
-        suporte = min(baixas)
-        
-        if len(altas) >= 2:
-            resistencia2 = sorted(altas)[-2]
-        else:
-            resistencia2 = resistencia
-            
-        if len(baixas) >= 2:
-            suporte2 = sorted(baixas)[1]
-        else:
-            suporte2 = suporte
-            
-        return {'r1': resistencia, 'r2': resistencia2, 's1': suporte, 's2': suporte2}
-        
-    def analisar_fluxo(self, velas):
-        if len(velas) < 10:
-            return 0, 0
-            
-        compras = 0
-        vendas = 0
-        
-        for vela in velas[-10:]:
-            if vela['close'] > vela['open']:
-                compras += vela['volume'] * (vela['close'] - vela['open']) / (vela['high'] - vela['low'] + 0.00001)
-            else:
-                vendas += vela['volume'] * (vela['open'] - vela['close']) / (vela['high'] - vela['low'] + 0.00001)
-                
-        return compras, vendas
-        
-    def analisar(self, velas):
-        try:
-            if len(velas) < 30:
-                return None, 0
-                
-            niveis = self.encontrar_niveis(velas)
-            preco = velas[-1]['close']
-            compras, vendas = self.analisar_fluxo(velas)
-            
-            pontos_call = 0
-            pontos_put = 0
-            
-            if abs(preco - niveis['s1']) / preco < 0.001:
-                pontos_call += 4
-            elif abs(preco - niveis['s2']) / preco < 0.001:
-                pontos_call += 2
-                
-            if abs(niveis['r1'] - preco) / preco < 0.001:
-                pontos_put += 4
-            elif abs(niveis['r2'] - preco) / preco < 0.001:
-                pontos_put += 2
-                
-            total = compras + vendas
-            if total > 0:
-                if compras / total > 0.65:
-                    pontos_call += 3
-                elif vendas / total > 0.65:
-                    pontos_put += 3
-                    
-            if len(velas) >= 3:
-                if preco > niveis['r1'] and velas[-2]['close'] <= niveis['r1']:
-                    pontos_call += 3
-                elif preco < niveis['s1'] and velas[-2]['close'] >= niveis['s1']:
-                    pontos_put += 3
-                    
-            if pontos_call >= 5 and pontos_call > pontos_put:
-                conf = min(60 + pontos_call * 4, 90)
-                return 'CALL', conf
-            elif pontos_put >= 5 and pontos_put > pontos_call:
-                conf = min(60 + pontos_put * 4, 90)
-                return 'PUT', conf
-                
-            return None, 0
-        except:
-            return None, 0
-
-# ═══════════════════════════════════════════
-# 🏆 ESTRATÉGIA 3: MOMENTUM PRO
-# ═══════════════════════════════════════════
-class MomentumPro:
-    def __init__(self):
-        self.nome = "⚡ Momentum Pro"
-        
-    def ema(self, precos, periodo):
-        if len(precos) < periodo:
-            return sum(precos) / len(precos) if precos else 0
-        k = 2 / (periodo + 1)
-        ema = sum(precos[:periodo]) / periodo
-        for preco in precos[periodo:]:
-            ema = (preco * k) + (ema * (1 - k))
-        return ema
-        
-    def rsi(self, precos, periodo=14):
-        if len(precos) < periodo + 1:
-            return 50
-        ganhos = []
-        perdas = []
-        for i in range(1, len(precos)):
-            diff = precos[i] - precos[i-1]
-            if diff > 0:
-                ganhos.append(diff)
-                perdas.append(0)
-            else:
-                ganhos.append(0)
-                perdas.append(abs(diff))
-        if len(ganhos) >= periodo:
-            avg_gain = sum(ganhos[-periodo:]) / periodo
-            avg_loss = sum(perdas[-periodo:]) / periodo
-        else:
-            avg_gain = sum(ganhos) / len(ganhos) if ganhos else 1
-            avg_loss = sum(perdas) / len(perdas) if perdas else 1
-        if avg_loss == 0:
-            return 100
-        rs = avg_gain / avg_loss
-        return 100 - (100 / (1 + rs))
-        
-    def calcular_macd(self, velas):
-        precos = [v['close'] for v in velas]
-        ema12 = self.ema(precos, 12)
-        ema26 = self.ema(precos, 26)
-        macd = ema12 - ema26
-        sinal = self.ema([macd], 9)
-        return {'macd': macd, 'sinal': sinal, 'hist': macd - sinal}
-        
-    def calcular_bandas(self, precos, periodo=20):
-        if len(precos) < periodo:
-            return {'sup': precos[-1], 'inf': precos[-1], 'meio': precos[-1]}
-        media = sum(precos[-periodo:]) / periodo
-        variancia = sum((p - media) ** 2 for p in precos[-periodo:]) / periodo
-        desvio = variancia ** 0.5
-        return {'sup': media + (2 * desvio), 'meio': media, 'inf': media - (2 * desvio)}
-        
-    def analisar(self, velas):
-        try:
-            if len(velas) < 30:
-                return None, 0
-                
-            precos = [v['close'] for v in velas]
-            rsi = self.rsi(precos)
-            macd = self.calcular_macd(velas)
-            bandas = self.calcular_bandas(precos)
-            preco = velas[-1]['close']
-            
-            pontos_call = 0
-            pontos_put = 0
-            
-            if rsi < 30:
-                pontos_call += 4
-            elif rsi < 40:
-                pontos_call += 2
-            elif rsi > 70:
-                pontos_put += 4
-            elif rsi > 60:
-                pontos_put += 2
-                
-            if macd['hist'] > 0 and macd['hist'] > macd['hist'] * 0.1:
-                pontos_call += 3
-            elif macd['hist'] < 0 and macd['hist'] < macd['hist'] * 0.1:
-                pontos_put += 3
-                
-            if preco < bandas['inf'] * 1.005:
-                pontos_call += 3
-            elif preco > bandas['sup'] * 0.995:
-                pontos_put += 3
-                
-            if len(velas) >= 3:
-                rsi_anterior = self.rsi(precos[:-2])
-                if precos[-1] < precos[-3] and rsi > rsi_anterior:
-                    pontos_call += 3
-                elif precos[-1] > precos[-3] and rsi < rsi_anterior:
-                    pontos_put += 3
-                    
-            if pontos_call >= 6 and pontos_call > pontos_put:
-                conf = min(55 + pontos_call * 4, 90)
-                return 'CALL', conf
-            elif pontos_put >= 6 and pontos_put > pontos_call:
-                conf = min(55 + pontos_put * 4, 90)
-                return 'PUT', conf
-                
-            return None, 0
-        except:
-            return None, 0
-
-# ═══════════════════════════════════════════
-# 🏆 ESTRATÉGIA 4: PRICE ACTION PRO
-# ═══════════════════════════════════════════
-class PriceActionPro:
-    def __init__(self):
-        self.nome = "🎯 Price Action Pro"
-        
-    def identificar_padroes(self, velas):
-        if len(velas) < 3:
-            return []
-            
-        v2 = velas[-2]
-        v3 = velas[-1]
-        
-        padroes = []
-        
-        if abs(v3['close'] - v3['open']) / (v3['high'] - v3['low'] + 0.00001) < 0.1:
-            padroes.append('doji')
-            
-        corpo = abs(v3['close'] - v3['open'])
-        sombra_inf = min(v3['close'], v3['open']) - v3['low']
-        if sombra_inf > corpo * 2 and sombra_inf > v3['high'] - max(v3['close'], v3['open']):
-            padroes.append('martelo')
-            
-        sombra_sup = v3['high'] - max(v3['close'], v3['open'])
-        if sombra_sup > corpo * 2 and sombra_sup > min(v3['close'], v3['open']) - v3['low']:
-            padroes.append('estrela_cadente')
-            
-        if v3['close'] > v2['open'] and v3['open'] < v2['close']:
-            if v3['close'] > v2['open'] and v3['close'] > v2['close']:
-                padroes.append('engolfo_alta')
-        elif v3['close'] < v2['open'] and v3['open'] > v2['close']:
-            if v3['close'] < v2['open'] and v3['close'] < v2['close']:
-                padroes.append('engolfo_baixa')
-                
-        if len(velas) >= 3:
-            if all(velas[i]['close'] > velas[i]['open'] for i in range(-3, 0)):
-                padroes.append('3_soldados')
-            elif all(velas[i]['close'] < velas[i]['open'] for i in range(-3, 0)):
-                padroes.append('3_corvos')
-                
-        return padroes
-        
-    def analisar(self, velas):
-        try:
-            if len(velas) < 10:
-                return None, 0
-                
-            padroes = self.identificar_padroes(velas)
-            
-            pontos_call = 0
-            pontos_put = 0
-            
-            if 'martelo' in padroes:
-                pontos_call += 4
-            if 'engolfo_alta' in padroes:
-                pontos_call += 4
-            if '3_soldados' in padroes:
-                pontos_call += 3
-                
-            if 'estrela_cadente' in padroes:
-                pontos_put += 4
-            if 'engolfo_baixa' in padroes:
-                pontos_put += 4
-            if '3_corvos' in padroes:
-                pontos_put += 3
-                
-            if 'doji' in padroes and len(velas) >= 2:
-                if velas[-1]['close'] > velas[-2]['close']:
-                    pontos_call += 2
-                else:
-                    pontos_put += 2
-                    
-            if len(velas) >= 5:
-                medias = [velas[i]['close'] for i in range(-5, 0)]
-                if all(medias[i] > medias[i-1] for i in range(1, len(medias))):
-                    pontos_call += 2
-                elif all(medias[i] < medias[i-1] for i in range(1, len(medias))):
-                    pontos_put += 2
-                    
-            if pontos_call >= 5 and pontos_call > pontos_put:
-                conf = min(55 + pontos_call * 5, 90)
-                return 'CALL', conf
-            elif pontos_put >= 5 and pontos_put > pontos_call:
-                conf = min(55 + pontos_put * 5, 90)
-                return 'PUT', conf
-                
-            return None, 0
-        except:
-            return None, 0
-
-# ═══════════════════════════════════════════
-# 🏆 ESTRATÉGIA 5: VOLATILIDADE PRO
-# ═══════════════════════════════════════════
-class VolatilidadePro:
-    def __init__(self):
-        self.nome = "🌊 Volatilidade Pro"
-        
-    def calcular_atr(self, velas, periodo=14):
-        if len(velas) < periodo + 1:
-            return 0
-            
-        trs = []
-        for i in range(-periodo, 0):
-            high = velas[i]['high']
-            low = velas[i]['low']
-            close_prev = velas[i-1]['close']
-            tr = max(high - low, abs(high - close_prev), abs(low - close_prev))
-            trs.append(tr)
-            
-        return sum(trs) / len(trs)
-        
-    def calcular_vol(self, velas):
-        if len(velas) < 20:
-            return 0
-            
-        retornos = []
-        for i in range(-20, 0):
-            ret = (velas[i]['close'] - velas[i-1]['close']) / velas[i-1]['close']
-            retornos.append(ret)
-            
-        media = sum(retornos) / len(retornos)
-        variancia = sum((r - media) ** 2 for r in retornos) / len(retornos)
-        return variancia ** 0.5 * 100
-        
-    def analisar(self, velas):
-        try:
-            if len(velas) < 20:
-                return None, 0
-                
-            atr = self.calcular_atr(velas)
-            vol = self.calcular_vol(velas)
-            preco = velas[-1]['close']
-            
-            pontos_call = 0
-            pontos_put = 0
-            
-            if atr > 0 and len(velas) >= 3:
-                movimento = abs(velas[-1]['close'] - velas[-3]['close'])
-                if movimento > atr * 0.8:
-                    if velas[-1]['close'] > velas[-3]['close']:
-                        pontos_call += 4
-                    else:
-                        pontos_put += 4
-                        
-            if vol > 0 and len(velas) >= 10:
-                vol_anterior = self.calcular_vol(velas[:-5])
-                if vol > vol_anterior * 1.5:
-                    if preco > velas[-5]['close']:
-                        pontos_call += 3
-                    else:
-                        pontos_put += 3
-                        
-            if len(velas) >= 10:
-                max_preco = max(v['high'] for v in velas[-10:])
-                min_preco = min(v['low'] for v in velas[-10:])
-                range_preco = max_preco - min_preco
-                
-                if range_preco / preco < 0.003:
-                    if preco > velas[-1]['open']:
-                        pontos_call += 2
-                    else:
-                        pontos_put += 2
-                        
-            if len(velas) >= 3:
-                vela = velas[-1]
-                corpo = abs(vela['close'] - vela['open'])
-                range_total = vela['high'] - vela['low']
-                
-                if corpo / range_total > 0.7:
-                    if vela['close'] > vela['open']:
-                        pontos_call += 2
-                    else:
-                        pontos_put += 2
-                        
-            if pontos_call >= 5 and pontos_call > pontos_put:
-                conf = min(50 + pontos_call * 5, 88)
-                return 'CALL', conf
-            elif pontos_put >= 5 and pontos_put > pontos_call:
-                conf = min(50 + pontos_put * 5, 88)
-                return 'PUT', conf
-                
-            return None, 0
-        except:
-            return None, 0
-
-# ═══════════════════════════════════════════
-# ⚛️ QUANTUM IA - 3/5 CONFIRMAM (SUBSTITUÍDO)
+# ⚛️ QUANTUM IA - 3/5 CONFIRMAM
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
-        self.estrategias = [
-            Ichimoku(),
-            SuporteResistencia(),
-            MomentumPro(),
-            PriceActionPro(),
-            VolatilidadePro()
-        ]
-        self.min_estrategias = 3
-        
-    def analisar_completo(self, v):
+        self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
+        self.raio_negro=RaioNegro();self.tsunami=Tsunami()
+        self.min_estrategias=3
+    def analisar_completo(self,v):
         try:
-            if len(v) < 52:
-                return None, 0, 0, {}
-                
-            resultados = []
-            votos = {'CALL': 0, 'PUT': 0}
-            confiancas = {'CALL': [], 'PUT': []}
-            detalhes = {}
-            
-            for est in self.estrategias:
+            if len(v)<30:return None,0,0,{}
+            resultados=[];votos={'CALL':0,'PUT':0};confiancas={'CALL':[],'PUT':[]};detalhes={}
+            estrategias=[('💀 Mortalha',self.mortalha),('🐜 Formiga',self.formiga),
+                        ('🏰 Fortaleza',self.fortaleza),('⚡ Raio Negro',self.raio_negro),
+                        ('🌊 Tsunami',self.tsunami)]
+            for nome,est in estrategias:
                 try:
-                    d, c = est.analisar(v)
-                    if d:
-                        resultados.append((est.nome, d, c))
-                        votos[d] += 1
-                        confiancas[d].append(c)
-                        detalhes[est.nome] = f"{d} {c:.0f}%"
-                    else:
-                        detalhes[est.nome] = "⏸️"
-                except:
-                    detalhes[est.nome] = "❌"
-                    
-            total = len(resultados)
-            
-            if total < self.min_estrategias:
-                return None, 0, total, detalhes
-                
-            if votos['CALL'] >= self.min_estrategias and votos['CALL'] > votos['PUT']:
-                conf = np.mean(confiancas['CALL'])
-                return 'CALL', min(conf + (total - 3) * 4, 95), total, detalhes
-                
-            if votos['PUT'] >= self.min_estrategias and votos['PUT'] > votos['CALL']:
-                conf = np.mean(confiancas['PUT'])
-                return 'PUT', min(conf + (total - 3) * 4, 95), total, detalhes
-                
-            return None, 0, total, detalhes
-            
-        except:
-            return None, 0, 0, {}
-            
-    def melhor_par(self, velas_dict, bloqueados, stats_pares):
-        melhor = None
-        melhor_score = 0
-        
-        for nome, velas in velas_dict.items():
-            if nome in bloqueados:
-                continue
-            if len(velas) >= 52:
-                d, cf, num, det = self.analisar_completo(velas)
+                    d,c=est.analisar(v)
+                    if d:resultados.append((nome,d,c));votos[d]+=1;confiancas[d].append(c);detalhes[nome]=f"{d} {c:.0f}%"
+                    else:detalhes[nome]="⏸️"
+                except:detalhes[nome]="❌"
+            total=len(resultados)
+            if total<self.min_estrategias:return None,0,total,detalhes
+            if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
+                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-3)*4,95),total,detalhes
+            if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
+                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-3)*4,95),total,detalhes
+            return None,0,total,detalhes
+        except:return None,0,0,{}
+    def melhor_par(self,velas_dict,bloqueados,stats_pares):
+        melhor=None;melhor_score=0
+        for nome,velas in velas_dict.items():
+            if nome in bloqueados:continue
+            if len(velas)>=30:
+                d,cf,num,det=self.analisar_completo(velas)
                 if d:
-                    score = cf + (num * 5)
-                    if nome in stats_pares and stats_pares[nome]['total'] >= 5:
-                        score += stats_pares[nome]['taxa'] * 0.1
-                    if score > melhor_score:
-                        melhor_score = score
-                        melhor = {
-                            'ativo': nome,
-                            'direcao': d,
-                            'confianca': cf,
-                            'estrategias': num,
-                            'detalhes': det
-                        }
+                    score=cf+(num*5)
+                    if nome in stats_pares and stats_pares[nome]['total']>=5:score+=stats_pares[nome]['taxa']*0.1
+                    if score>melhor_score:melhor_score=score;melhor={'ativo':nome,'direcao':d,'confianca':cf,'estrategias':num,'detalhes':det}
         return melhor
 
 # ═══════════════════════════════════════════
-# 👨‍🏫 TRADER PROFESSOR (INALTERADO)
+# 👨‍🏫 TRADER PROFESSOR
 # ═══════════════════════════════════════════
 class TraderProfessor:
     def __init__(self):
@@ -724,7 +344,7 @@ class TraderProfessor:
     def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
 
 # ═══════════════════════════════════════════
-# IQ API (INALTERADO)
+# IQ API
 # ═══════════════════════════════════════════
 class IQAPI:
     def __init__(self,e,s,a):self.e=e;self.s=s;self.a=a;self.api=None;self.velas={nome:deque(maxlen=100) for nome in a};self.ok=False;self.erros=0
@@ -763,7 +383,7 @@ class IQAPI:
             except:pass
 
 # ═══════════════════════════════════════════
-# BOT (INALTERADO)
+# BOT
 # ═══════════════════════════════════════════
 class Bot:
     def __init__(self):
@@ -902,13 +522,7 @@ class Bot:
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
         print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 📊 Placar Corrigido\n")
-        print(f"  🏆 ESTRATÉGIAS PROFISSIONAIS ATIVAS:")
-        print(f"     🏯 Ichimoku (Japonesa)")
-        print(f"     🏔️ S/R + Ordem Flow")
-        print(f"     ⚡ Momentum Pro")
-        print(f"     🎯 Price Action Pro")
-        print(f"     🌊 Volatilidade Pro\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n📊 Placar Corrigido\n📋 Lista Diária\n🏆 *ESTRATÉGIAS PROFISSIONAIS*\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n📊 Placar Corrigido\n📋 Lista Diária\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
