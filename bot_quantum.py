@@ -2,11 +2,9 @@
 """
 ╔══════════════════════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1  -  V I P               ║
-║   👨‍🏫 SISTEMA VIP | Estratégias Profissionais            ║
-║   🏆 5 Estratégias Avançadas = Sinais de Alta Precisão   ║
-║   🔄 Correções ENVIADAS no Telegram                      ║
-║   📊 3 Ativos OTC | ☁️ Cloud Ready                       ║
-║   ⚡ CARREGA 52 VELAS IMEDIATAMENTE                      ║
+║   🏆 SISTEMA VIP | Railway Ready                          ║
+║   ⚡ LOGS FORÇADOS | KEEP-ALIVE                          ║
+║   📊 3 Ativos OTC | Estratégias Profissionais            ║
 ╚══════════════════════════════════════════════════════════════╝
 """
 import asyncio
@@ -20,6 +18,12 @@ import os
 from datetime import datetime, timedelta, timezone
 from collections import deque
 from pathlib import Path
+
+# ════════════════════════════════════════════════════════════
+# ⚡ CONFIGURAÇÃO PARA RAILWAY - FORÇA LOGS
+# ════════════════════════════════════════════════════════════
+sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
+sys.stderr.reconfigure(line_buffering=True) if hasattr(sys.stderr, 'reconfigure') else None
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 
@@ -40,6 +44,7 @@ def banner():
     print(f"║   🏆 SISTEMA VIP | Estratégias Profissionais                  ║")
     print(f"║   🔄 5 Estratégias = Sinais de Alta Precisão                  ║")
     print(f"║   📊 3 Ativos OTC | ⚡ Velas Imediatas                        ║")
+    print(f"║   ☁️  Railway Ready | Keep-Alive Ativo                        ║")
     print(f"╚══════════════════════════════════════════════════════════════╝{C.E}")
 
 # ════════════════════════════════════════════════════════════
@@ -55,7 +60,8 @@ def carregar_config():
     
     if cloud_token and cloud_chat and cloud_email and cloud_senha:
         banner()
-        print(f"\n{C.G}✅ Modo CLOUD detectado!{C.E}\n")
+        print(f"\n{C.G}✅ Modo CLOUD detectado!{C.E}")
+        sys.stdout.flush()
         return {"token": cloud_token, "chat": cloud_chat, "email": cloud_email, "senha": cloud_senha}
     
     if Path(CONFIG_FILE).exists():
@@ -65,7 +71,8 @@ def carregar_config():
             Path(CONFIG_FILE).unlink()
             return carregar_config()
         banner()
-        print(f"\n{C.G}✅ Config carregada!{C.E}\n")
+        print(f"\n{C.G}✅ Config carregada!{C.E}")
+        sys.stdout.flush()
         return cfg
     
     banner()
@@ -78,12 +85,14 @@ def carregar_config():
         }
     except (EOFError, KeyboardInterrupt):
         print(f"\n{C.R}❌ Configure as variáveis de ambiente!{C.E}")
+        sys.stdout.flush()
         sys.exit(1)
     
     with open(CONFIG_FILE, 'w') as f:
         json.dump(cfg, f, indent=2)
     banner()
-    print(f"\n{C.G}✅ Configuração salva!{C.E}\n")
+    print(f"\n{C.G}✅ Configuração salva!{C.E}")
+    sys.stdout.flush()
     return cfg
 
 cfg = carregar_config()
@@ -866,28 +875,21 @@ class IQAPI:
         return False
         
     def obter(self, ativo_id, qtd=80):
-        """OBTÉM VELAS PASSADAS IMEDIATAMENTE"""
         for retry in range(3):
             if not self.ok and not self.conectar():
                 return 0
             try:
-                # ⚡ PEGA VELAS DO PASSADO (já fechadas)
-                tempo_atual = time.time()
-                # Pega velas dos últimos minutos (já fechadas)
-                tempo_passado = tempo_atual - (qtd * 65)  # 65 segundos por vela
-                
+                tempo_passado = time.time() - (qtd * 65)
                 c = self.api.get_candles(ativo_id, 60, qtd, tempo_passado)
                 
                 if c and len(c) > 0:
                     nome = [k for k, v in self.a.items() if v == ativo_id][0]
                     self.velas[nome].clear()
                     
-                    # Filtra apenas velas COMPLETAS (já fechadas)
                     for x in c[-qtd:]:
                         if isinstance(x, dict):
                             try:
                                 tempo_vela = x.get('from', 0)
-                                # Só adiciona se a vela já fechou
                                 if tempo_vela < time.time() - 55:
                                     self.velas[nome].append({
                                         'time': datetime.fromtimestamp(tempo_vela, FUSO_BR),
@@ -908,7 +910,6 @@ class IQAPI:
         return 0
         
     def atualizar(self):
-        """Atualiza com velas novas"""
         if not self.ok:
             self.conectar()
         for n, i in self.a.items():
@@ -986,6 +987,7 @@ class Bot:
         print(f"{C.GOLD}║ 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L ║{C.E}")
         print(f"{C.GOLD}║ 🎯{stats['taxa']}% ⏰{horas}h{minutos}m  ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════════╝{C.E}\n")
+        sys.stdout.flush()
         
     def fechar_dia(self):
         agora = datetime.now(FUSO_BR)
@@ -1026,10 +1028,12 @@ class Bot:
         print(f"{C.GOLD}║ 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L ║{C.E}")
         print(f"{C.GOLD}║ 🎯{stats['taxa']}%              ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════════╝{C.E}\n")
+        sys.stdout.flush()
         
         self.placar.zerar()
         self.sinais = 0
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
+        sys.stdout.flush()
         
     # ════════════════════════════════════════════════════════
     # 📤 FORMATO DO SINAL
@@ -1117,6 +1121,7 @@ class Bot:
             pc = v[-1]['open']
             hora = v[-1]['time'].strftime('%H:%M')
             print(f"\n  ⚛️ {at}-OTC {d} | OPEN:{pc:.5f} | Vela:{hora}")
+            sys.stdout.flush()
             
             await self.esperar(5)
             v = self.iq.velas[at]
@@ -1124,6 +1129,7 @@ class Bot:
             if len(v) > 0 and self.bateu(d, pc, v[-1]):
                 r = self.placar.win(0)
                 print(f"  ✅ {r}")
+                sys.stdout.flush()
                 self.placar.registrar(at, d, conf, "WIN")
                 self.tg.send(self.fmt_corr(r, sinal))
                 self.professor.registrar('win')
@@ -1132,6 +1138,7 @@ class Bot:
                 return
                 
             print(f"  ❌ Principal")
+            sys.stdout.flush()
             self.placar.registrar(at, d, conf, "LOSS")
             
             stats = self.placar.get_stats()
@@ -1139,6 +1146,7 @@ class Bot:
                 v = self.iq.velas[at]
                 pg = v[-1]['open'] if len(v) > 0 else pc
                 print(f"  🔄 GALE 1 | OPEN:{pg:.5f}")
+                sys.stdout.flush()
                 
                 await self.esperar(5)
                 v = self.iq.velas[at]
@@ -1146,6 +1154,7 @@ class Bot:
                 if len(v) > 0 and self.bateu(d, pg, v[-1]):
                     r = self.placar.win(1)
                     print(f"  ✅ {r}")
+                    sys.stdout.flush()
                     self.placar.registrar(at, d, conf, "WIN GALE 1", is_gale=True)
                     self.tg.send(self.fmt_corr(r, sinal))
                     self.professor.registrar('win')
@@ -1154,18 +1163,22 @@ class Bot:
                     return
                     
                 print(f"  ❌ GALE 1")
+                sys.stdout.flush()
                 r = self.placar.loss()
                 print(f"  🔴 {r}")
+                sys.stdout.flush()
                 self.placar.registrar(at, d, conf, "LOSS GALE 1", is_gale=True)
                 self.tg.send(self.fmt_corr(r, sinal))
                 explicacao = self.professor.explicar_loss(sinal, self.iq.velas[at])
                 self.tg.send(explicacao)
                 print(f"  🧠 Loss explicado!")
+                sys.stdout.flush()
                 self.professor.registrar('loss')
                 self.professor.atualizar_stats(at, 'loss')
             else:
                 r = self.placar.loss()
                 print(f"  🔴 {r} (sem Gale)")
+                sys.stdout.flush()
                 self.placar.registrar(at, d, conf, "LOSS")
                 self.tg.send(self.fmt_corr(r, sinal))
                 self.professor.registrar('loss')
@@ -1177,12 +1190,18 @@ class Bot:
             
         except Exception as e:
             print(f"  ❌ {e}")
+            sys.stdout.flush()
             self.op = False
 
     # ════════════════════════════════════════════════════════
     # 🚀 RUN
     # ════════════════════════════════════════════════════════
     async def run(self):
+        # 🔍 LOG DE INÍCIO - FORÇADO PARA RAILWAY
+        print(f"\n{C.C}🔍 INICIANDO QUANTUM IA VIP - RAILWAY MODE{C.E}")
+        print(f"⏰ Início: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        sys.stdout.flush()
+        
         banner()
         
         # 🎯 MENSAGEM DE INICIALIZAÇÃO
@@ -1195,18 +1214,23 @@ class Bot:
         print(f"{C.MAGENTA}{C.B}║                                                       ║{C.E}")
         print(f"{C.MAGENTA}{C.B}║      ⚡ CARREGANDO 52 VELAS PASSADAS...               ║{C.E}")
         print(f"{C.MAGENTA}{C.B}╚════════════════════════════════════════════════════════╝{C.E}\n")
+        sys.stdout.flush()
         
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
+        sys.stdout.flush()
         
         if not self.iq.conectar():
             print(f"  ❌ Falha conexão IQ Option!")
+            sys.stdout.flush()
             self.tg.send("❌ *ERRO:* Falha ao conectar com IQ Option!")
             return
             
         print(f"  {C.G}✅ Conectado à IQ Option{C.E}")
+        sys.stdout.flush()
         
         # ⚡ CARREGA VELAS PASSADAS IMEDIATAMENTE
         print(f"\n  {C.C}📊 Carregando velas passadas...{C.E}")
+        sys.stdout.flush()
         self.iq.atualizar()
         
         # Mostra quantas velas foram carregadas
@@ -1215,7 +1239,8 @@ class Bot:
             velas = self.iq.velas[ativo]
             status = "✅" if len(velas) >= 52 else "⚠️"
             print(f"     {status} {ativo}: {len(velas)} velas")
-            
+        sys.stdout.flush()
+        
         print(f"\n  {C.G}🏆 ESTRATÉGIAS ATIVAS:{C.E}")
         print(f"     🏯 Ichimoku (Japonesa)")
         print(f"     🏔️ S/R + Ordem Flow")
@@ -1223,6 +1248,7 @@ class Bot:
         print(f"     🎯 Price Action Pro")
         print(f"     🌊 Volatilidade Pro\n")
         print(f"  {C.G}📤 Correções enviadas no Telegram após cada sinal{C.E}\n")
+        sys.stdout.flush()
         
         # Envia mensagem VIP no Telegram
         self.tg.send(f"🚀 *SISTEMA VIP LIGADO!*\n\n📊 *Analisando Mercado...*\n💰 *BORA FAZER DINHEIRO!*\n⚡ *52 velas carregadas!*\n\n⚛️ Quantum IA M1 VIP\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n\n🏆 *5 Estratégias Avançadas:*\n🏯 Ichimoku\n🏔️ S/R\n⚡ Momentum\n🎯 Price Action\n🌊 Volatilidade")
@@ -1231,10 +1257,31 @@ class Bot:
         self.iniciado = True
         
         print(f"\n  ✅ QUANTUM IA PRO | Gerando sinais imediatamente...\n")
+        sys.stdout.flush()
+        
+        # ⚡ KEEP-ALIVE - Mostra que está vivo
+        ultimo_keep_alive = time.time()
+        ultimo_log = time.time()
         
         while True:
             try:
                 agora = datetime.now(FUSO_BR)
+                
+                # ⚡ KEEP-ALIVE LOG (a cada 60 segundos)
+                if time.time() - ultimo_keep_alive > 60:
+                    stats = self.placar.get_stats()
+                    print(f"💓 KEEP-ALIVE: {agora.strftime('%H:%M:%S')} | Sinais: {self.sinais} | Placar: 🟢{stats['wins']}W 🔴{stats['losses']}L")
+                    sys.stdout.flush()
+                    ultimo_keep_alive = time.time()
+                
+                # Verifica se o bot travou (não atualiza há mais de 90 segundos)
+                if time.time() - ultimo_log > 90:
+                    print(f"{C.Y}⚠️ BOT PARADO? Último log: {datetime.fromtimestamp(ultimo_log).strftime('%H:%M:%S')}{C.E}")
+                    print(f"{C.Y}🔄 Tentando recuperar...{C.E}")
+                    sys.stdout.flush()
+                    self.iq.ok = False
+                    self.iq.conectar()
+                    ultimo_log = time.time()
                 
                 if agora.hour == 23 and agora.minute == 59 and not self.placar_enviado:
                     self.fechar_dia()
@@ -1248,6 +1295,7 @@ class Bot:
                     try:
                         self.iq.atualizar()
                         self.professor.atualizar_dados(self.iq.velas)
+                        ultimo_log = time.time()
                     except:
                         self.iq.ok = False
                         
@@ -1262,6 +1310,7 @@ class Bot:
                             
                             he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
                             print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias', 0)}/5 | ⏰ {he}")
+                            sys.stdout.flush()
                             
                             # 📤 ENVIA SINAL
                             self.tg.send(self.fmt_sinal(sinal))
@@ -1281,6 +1330,8 @@ class Bot:
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L 🎯{stats['taxa']}%")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
+                        sys.stdout.flush()
+                        ultimo_log = time.time()
                     except:
                         pass
                         
@@ -1289,6 +1340,7 @@ class Bot:
             except KeyboardInterrupt:
                 clear()
                 print(f"\n{C.Y}🔄 Desligando sistema...{C.E}\n")
+                sys.stdout.flush()
                 
                 # 📤 ENVIA PLACAR FINAL
                 self.enviar_placar_final()
@@ -1296,6 +1348,7 @@ class Bot:
                 stats = self.placar.get_stats()
                 print(f"\n{C.G}👋 Sistema desligado!{C.E}")
                 print(f"{C.G}📊 Placar Final: 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L | 🎯{stats['taxa']}%{C.E}\n")
+                sys.stdout.flush()
                 
                 if self.iq.api:
                     try:
@@ -1306,16 +1359,24 @@ class Bot:
                 
             except Exception as e:
                 print(f"  {C.R}❌ Erro: {str(e)[:50]}{C.E}")
+                print(f"  {C.Y}🔄 Tentando recuperar...{C.E}")
+                sys.stdout.flush()
                 self.iq.ok = False
                 await asyncio.sleep(5)
+                continue
 
 # ════════════════════════════════════════════════════════════
 # MAIN
 # ════════════════════════════════════════════════════════════
 if __name__ == "__main__":
     try:
+        print(f"{C.G}🚀 INICIANDO QUANTUM IA VIP{C.E}")
+        print(f"⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        sys.stdout.flush()
         asyncio.run(Bot().run())
     except KeyboardInterrupt:
-        print(f"\n{C.G}👋 Até logo!{C.E}\n")
+        print(f"\n{C.G}👋 Desligado!{C.E}\n")
+        sys.stdout.flush()
     except Exception as e:
         print(f"\n{C.R}❌ Erro fatal: {e}{C.E}\n")
+        sys.stdout.flush()
