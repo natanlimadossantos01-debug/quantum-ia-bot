@@ -4,6 +4,7 @@
 ║   ⚛️  Q U A N T U M   I A   M 1  -  P R O               ║
 ║   👨‍🏫 ESTRATÉGIAS PROFISSIONAIS (Nada básicas)          ║
 ║   🏆 5 Estratégias Avançadas = Sinais de Alta Precisão   ║
+║   🔄 Correções ENVIADAS no Telegram                      ║
 ║   📊 Backtest Integrado | ☁️ Cloud Ready                 ║
 ╚══════════════════════════════════════════════════════════════╝
 """
@@ -36,6 +37,7 @@ def banner():
     print(f"║   ⚛️  Q U A N T U M   I A   M 1  -  P R O                     ║")
     print(f"║   🎯 ESTRATÉGIAS PROFISSIONAIS (Nada básicas)                 ║")
     print(f"║   🏆 5 Estratégias Avançadas = Sinais de Alta Precisão        ║")
+    print(f"║   🔄 Correções ENVIADAS no Telegram                           ║")
     print(f"╚══════════════════════════════════════════════════════════════╝{C.E}")
 
 # ════════════════════════════════════════════════════════════
@@ -97,46 +99,66 @@ ATIVOS_OTC = {
 }
 
 # ════════════════════════════════════════════════════════════
-# PLACAR
+# PLACAR (com histórico para correções)
 # ════════════════════════════════════════════════════════════
 class Placar:
     def __init__(self):
         self.w = 0
         self.l = 0
+        self.g1 = 0
         self.total_sinais = 0
         self.s = deque(maxlen=20)
         self.ops = []
         self.dia = datetime.now(FUSO_BR).day
+        self.ultimo_resultado = None
         
-    def win(self):
-        self.w += 1
-        self.total_sinais += 1
-        self.s.append('🟢')
-        return "✅ SINAL CERTO"
-        
+    def win(self, g=0):
+        if g == 0:
+            self.w += 1
+            self.total_sinais += 1
+            self.s.append('🟢')
+            self.ultimo_resultado = "WIN"
+            return "✅ WIN"
+        else:
+            self.g1 += 1
+            self.total_sinais += 1
+            self.s.append('🟡')
+            self.ultimo_resultado = "WIN GALE 1"
+            return "✅ WIN GALE 1"
+            
     def loss(self):
         self.l += 1
         self.total_sinais += 1
         self.s.append('🔴')
-        return "❌ SINAL ERRADO"
+        self.ultimo_resultado = "LOSS"
+        return "❌ LOSS"
         
-    def registrar(self, ativo, direcao, conf, resultado):
+    def registrar(self, ativo, direcao, conf, resultado, is_gale=False):
         agora = datetime.now(FUSO_BR)
         hora = agora.strftime('%H:%M')
-        emoji = "✅" if "CERTO" in resultado else "🔴"
-        self.ops.append(f"M1 {ativo}-OTC {direcao} {hora} {emoji}")
+        sufixo = "¹" if is_gale else ""
+        emoji = "✅" if "WIN" in resultado else "🔴"
+        self.ops.append(f"M1 {ativo}-OTC {direcao} {hora} {emoji}{sufixo}")
         
     def zerar(self):
         self.w = 0
         self.l = 0
+        self.g1 = 0
         self.total_sinais = 0
         self.s.clear()
         self.ops.clear()
+        self.ultimo_resultado = None
         
     def get_stats(self):
-        total = self.w + self.l
-        tx = round((self.w / total) * 100, 1) if total > 0 else 0
-        return {'wins': self.w, 'losses': self.l, 'total': total, 'taxa': tx}
+        total = self.w + self.l + self.g1
+        tx = round(((self.w + self.g1) / total) * 100, 1) if total > 0 else 0
+        return {
+            'wins': self.w,
+            'losses': self.l,
+            'gales': self.g1,
+            'total': total,
+            'taxa': tx
+        }
 
 class Telegram:
     def __init__(self, t, c):
@@ -152,7 +174,7 @@ class Telegram:
             pass
 
 # ════════════════════════════════════════════════════════════
-# 🏆 ESTRATÉGIA 1: ICHIMOKU (Japonesa - A Mais Poderosa)
+# 🏆 ESTRATÉGIA 1: ICHIMOKU
 # ════════════════════════════════════════════════════════════
 class Ichimoku:
     def __init__(self):
@@ -161,22 +183,18 @@ class Ichimoku:
     def calcular_linhas(self, velas):
         precos = [v['close'] for v in velas]
         
-        # Tenkan-sen (Linha de Conversão) - 9 períodos
         if len(precos) >= 9:
             tenkan = (max(precos[-9:]) + min(precos[-9:])) / 2
         else:
             tenkan = precos[-1]
             
-        # Kijun-sen (Linha Base) - 26 períodos
         if len(precos) >= 26:
             kijun = (max(precos[-26:]) + min(precos[-26:])) / 2
         else:
             kijun = precos[-1]
             
-        # Senkou Span A (Nuvem A)
         senkou_a = (tenkan + kijun) / 2
         
-        # Senkou Span B (Nuvem B) - 52 períodos
         if len(precos) >= 52:
             senkou_b = (max(precos[-52:]) + min(precos[-52:])) / 2
         else:
@@ -195,13 +213,11 @@ class Ichimoku:
         pontos_call = 0
         pontos_put = 0
         
-        # 1. Preço vs Nuvem (SINAL MAIS FORTE)
         if preco > linhas['senkou_a'] and preco > linhas['senkou_b']:
             pontos_call += 4
         elif preco < linhas['senkou_a'] and preco < linhas['senkou_b']:
             pontos_put += 4
             
-        # 2. Tenkan vs Kijun (Tendência)
         if linhas['tenkan'] > linhas['kijun']:
             pontos_call += 3
             if linhas['tenkan'] > linhas['kijun'] * 1.005:
@@ -211,13 +227,11 @@ class Ichimoku:
             if linhas['kijun'] > linhas['tenkan'] * 1.005:
                 pontos_put += 1
                 
-        # 3. Inclinação da Nuvem
         if linhas['senkou_a'] > linhas['senkou_b']:
             pontos_call += 2
         else:
             pontos_put += 2
             
-        # 4. Breakout da Nuvem (OPORTUNIDADE)
         if preco > linhas['senkou_a'] and preco_ant <= linhas['senkou_a']:
             pontos_call += 3
         elif preco < linhas['senkou_b'] and preco_ant >= linhas['senkou_b']:
@@ -233,7 +247,7 @@ class Ichimoku:
         return None, 0
 
 # ════════════════════════════════════════════════════════════
-# 🏆 ESTRATÉGIA 2: SUPORTE/RESISTÊNCIA + FLUXO DE ORDENS
+# 🏆 ESTRATÉGIA 2: SUPORTE/RESISTÊNCIA + ORDEM FLOW
 # ════════════════════════════════════════════════════════════
 class SuporteResistencia:
     def __init__(self):
@@ -284,19 +298,16 @@ class SuporteResistencia:
         pontos_call = 0
         pontos_put = 0
         
-        # 1. Preço próximo do suporte
         if abs(preco - niveis['s1']) / preco < 0.001:
             pontos_call += 4
         elif abs(preco - niveis['s2']) / preco < 0.001:
             pontos_call += 2
             
-        # 2. Preço próximo da resistência
         if abs(niveis['r1'] - preco) / preco < 0.001:
             pontos_put += 4
         elif abs(niveis['r2'] - preco) / preco < 0.001:
             pontos_put += 2
             
-        # 3. Fluxo de ordens (SMART MONEY)
         total = compras + vendas
         if total > 0:
             if compras / total > 0.65:
@@ -304,7 +315,6 @@ class SuporteResistencia:
             elif vendas / total > 0.65:
                 pontos_put += 3
                 
-        # 4. Quebra de níveis
         if len(velas) >= 3:
             if preco > niveis['r1'] and velas[-2]['close'] <= niveis['r1']:
                 pontos_call += 3
@@ -321,7 +331,7 @@ class SuporteResistencia:
         return None, 0
 
 # ════════════════════════════════════════════════════════════
-# 🏆 ESTRATÉGIA 3: MOMENTUM COM RSI + MACD + BANDAS
+# 🏆 ESTRATÉGIA 3: MOMENTUM PRO
 # ════════════════════════════════════════════════════════════
 class MomentumPro:
     def __init__(self):
@@ -389,7 +399,6 @@ class MomentumPro:
         pontos_call = 0
         pontos_put = 0
         
-        # 1. RSI (Sobrecomprado/Sobrevendido)
         if rsi < 30:
             pontos_call += 4
         elif rsi < 40:
@@ -399,19 +408,16 @@ class MomentumPro:
         elif rsi > 60:
             pontos_put += 2
             
-        # 2. MACD (Momentum)
         if macd['hist'] > 0 and macd['hist'] > macd['hist'] * 0.1:
             pontos_call += 3
         elif macd['hist'] < 0 and macd['hist'] < macd['hist'] * 0.1:
             pontos_put += 3
             
-        # 3. Bandas de Bollinger (Extremos)
         if preco < bandas['inf'] * 1.005:
             pontos_call += 3
         elif preco > bandas['sup'] * 0.995:
             pontos_put += 3
             
-        # 4. Divergência (Sinal Forte)
         if len(velas) >= 3:
             rsi_anterior = self.rsi(precos[:-2])
             if precos[-1] < precos[-3] and rsi > rsi_anterior:
@@ -429,7 +435,7 @@ class MomentumPro:
         return None, 0
 
 # ════════════════════════════════════════════════════════════
-# 🏆 ESTRATÉGIA 4: PRICE ACTION COM PADRÕES DE CANDLESTICK
+# 🏆 ESTRATÉGIA 4: PRICE ACTION PRO
 # ════════════════════════════════════════════════════════════
 class PriceActionPro:
     def __init__(self):
@@ -445,37 +451,28 @@ class PriceActionPro:
         
         padroes = []
         
-        # DOJI (Indecisão)
         if abs(v3['close'] - v3['open']) / (v3['high'] - v3['low'] + 0.00001) < 0.1:
             padroes.append('doji')
             
-        # MARTELO (Reversão Alta)
         corpo = abs(v3['close'] - v3['open'])
         sombra_inf = min(v3['close'], v3['open']) - v3['low']
         if sombra_inf > corpo * 2 and sombra_inf > v3['high'] - max(v3['close'], v3['open']):
             padroes.append('martelo')
             
-        # ESTRELA CADENTE (Reversão Baixa)
         sombra_sup = v3['high'] - max(v3['close'], v3['open'])
         if sombra_sup > corpo * 2 and sombra_sup > min(v3['close'], v3['open']) - v3['low']:
             padroes.append('estrela_cadente')
             
-        # ENGOLE ALTA (Sinal Forte)
         if v3['close'] > v2['open'] and v3['open'] < v2['close']:
             if v3['close'] > v2['open'] and v3['close'] > v2['close']:
                 padroes.append('engolfo_alta')
-                
-        # ENGOLE BAIXA (Sinal Forte)
         elif v3['close'] < v2['open'] and v3['open'] > v2['close']:
             if v3['close'] < v2['open'] and v3['close'] < v2['close']:
                 padroes.append('engolfo_baixa')
                 
-        # 3 SOLDADOS BRANCOS (Forte Alta)
         if len(velas) >= 3:
             if all(velas[i]['close'] > velas[i]['open'] for i in range(-3, 0)):
                 padroes.append('3_soldados')
-                
-        # 3 CORVOS NEGROS (Forte Baixa)
             elif all(velas[i]['close'] < velas[i]['open'] for i in range(-3, 0)):
                 padroes.append('3_corvos')
                 
@@ -486,12 +483,10 @@ class PriceActionPro:
             return None, 0
             
         padroes = self.identificar_padroes(velas)
-        preco = velas[-1]['close']
         
         pontos_call = 0
         pontos_put = 0
         
-        # PADRÕES DE ALTA
         if 'martelo' in padroes:
             pontos_call += 4
         if 'engolfo_alta' in padroes:
@@ -499,7 +494,6 @@ class PriceActionPro:
         if '3_soldados' in padroes:
             pontos_call += 3
             
-        # PADRÕES DE BAIXA
         if 'estrela_cadente' in padroes:
             pontos_put += 4
         if 'engolfo_baixa' in padroes:
@@ -507,14 +501,12 @@ class PriceActionPro:
         if '3_corvos' in padroes:
             pontos_put += 3
             
-        # DOJI PRECISA CONFIRMAÇÃO
         if 'doji' in padroes and len(velas) >= 2:
             if velas[-1]['close'] > velas[-2]['close']:
                 pontos_call += 2
             else:
                 pontos_put += 2
                 
-        # TENDÊNCIA DE CURTO PRAZO
         if len(velas) >= 5:
             medias = [velas[i]['close'] for i in range(-5, 0)]
             if all(medias[i] > medias[i-1] for i in range(1, len(medias))):
@@ -532,7 +524,7 @@ class PriceActionPro:
         return None, 0
 
 # ════════════════════════════════════════════════════════════
-# 🏆 ESTRATÉGIA 5: VOLATILIDADE COM ATR E EXPLOSÕES
+# 🏆 ESTRATÉGIA 5: VOLATILIDADE PRO
 # ════════════════════════════════════════════════════════════
 class VolatilidadePro:
     def __init__(self):
@@ -576,7 +568,6 @@ class VolatilidadePro:
         pontos_call = 0
         pontos_put = 0
         
-        # 1. Movimento Forte (ATR)
         if atr > 0 and len(velas) >= 3:
             movimento = abs(velas[-1]['close'] - velas[-3]['close'])
             if movimento > atr * 0.8:
@@ -585,7 +576,6 @@ class VolatilidadePro:
                 else:
                     pontos_put += 4
                     
-        # 2. Explosão de Volatilidade (OPORTUNIDADE)
         if vol > 0 and len(velas) >= 10:
             vol_anterior = self.calcular_vol(velas[:-5])
             if vol > vol_anterior * 1.5:
@@ -594,7 +584,6 @@ class VolatilidadePro:
                 else:
                     pontos_put += 3
                     
-        # 3. Consolidação - Breakout Iminente
         if len(velas) >= 10:
             max_preco = max(v['high'] for v in velas[-10:])
             min_preco = min(v['low'] for v in velas[-10:])
@@ -606,7 +595,6 @@ class VolatilidadePro:
                 else:
                     pontos_put += 2
                     
-        # 4. Velas Fortes
         if len(velas) >= 3:
             vela = velas[-1]
             corpo = abs(vela['close'] - vela['open'])
@@ -913,7 +901,7 @@ class IQAPI:
                 pass
 
 # ════════════════════════════════════════════════════════════
-# BOT PRINCIPAL
+# BOT PRINCIPAL (COM CORREÇÕES NO TELEGRAM)
 # ════════════════════════════════════════════════════════════
 class Bot:
     def __init__(self):
@@ -922,6 +910,7 @@ class Bot:
         self.placar = Placar()
         self.iq = IQAPI(EMAIL, SENHA, ATIVOS_OTC)
         self.professor = TraderProfessor()
+        self.op = False
         self.ult = 0
         self.sinais = 0
         self.ultimo_sinal_ativo = {}
@@ -966,6 +955,7 @@ class Bot:
 ┌──────────────────────────┐
 │ ⚛️ QUANTUM IA M1 PRO    │
 │ 🟢 Acertos: {stats['wins']}      │
+│ 🟡 Gale 1: {stats['gales']}      │
 │ 🔴 Erros: {stats['losses']}      │
 │ 📨 Total Sinais: {stats['total']} │
 │ 🎯 Assertividade: {stats['taxa']}% │
@@ -978,7 +968,7 @@ class Bot:
         self.tg.send(msg)
         print(f"\n{C.GOLD}╔══════════════════════════════════╗{C.E}")
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO    ║{C.E}")
-        print(f"{C.GOLD}║ 🟢{stats['wins']}W 🔴{stats['losses']}L ║{C.E}")
+        print(f"{C.GOLD}║ 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L ║{C.E}")
         print(f"{C.GOLD}║ 🎯{stats['taxa']}%              ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════════╝{C.E}\n")
         
@@ -1004,7 +994,166 @@ class Bot:
 ⚠️ Sinal apenas para análise.
 📊 ESTRATÉGIAS PROFISSIONAIS ATIVAS:
 🏯 Ichimoku | 🏔️ S/R | ⚡ Momentum | 🎯 Price Action | 🌊 Volatilidade"""
+
+    # ════════════════════════════════════════════════════════
+    # 📤 MÉTODO fmt_corr - CORREÇÃO
+    # ════════════════════════════════════════════════════════
+    def fmt_corr(self, r, sinal):
+        """Formata a mensagem de correção para o Telegram"""
+        stats = self.placar.get_stats()
         
+        # Pega a última operação registrada
+        ultima_op = self.placar.ops[-1] if self.placar.ops else ""
+        
+        # Emoji de acordo com o resultado
+        emoji = "✅" if "WIN" in r else "🔴"
+        
+        # Formata resultado com emojis
+        if "WIN" in r and "GALE" in r:
+            resultado_fmt = "🟡 WIN GALE 1"
+        elif "WIN" in r:
+            resultado_fmt = "🟢 WIN"
+        else:
+            resultado_fmt = "🔴 LOSS"
+            
+        return f"""{emoji} *CORREÇÃO*
+
+📊 *Resultado:* {resultado_fmt}
+💰 *Ativo:* {sinal['ativo']}-OTC
+📈 *Direção:* {sinal['direcao']} {'🟢' if sinal['direcao'] == 'CALL' else '🔴'}
+🎯 *Confiança:* {sinal['confianca']:.0f}%
+
+📊 *PLACAR ATUAL:*
+🟢 Wins: {stats['wins']}
+🟡 Gale 1: {stats['gales']}
+🔴 Losses: {stats['losses']}
+🎯 Assertividade: {stats['taxa']}%
+
+📋 {ultima_op if ultima_op else 'Nenhuma operação registrada'}"""
+
+    # ════════════════════════════════════════════════════════
+    # 🔄 MÉTODO CORRIGIR - COM ENVIO DE CORREÇÕES
+    # ════════════════════════════════════════════════════════
+    def bateu(self, d, p, v):
+        return v['high'] > p if d == 'CALL' else v['low'] < p
+        
+    async def esperar(self, seg=60):
+        try:
+            agora = datetime.now(FUSO_BR)
+            alvo = agora.replace(second=0, microsecond=0) + timedelta(minutes=1) + timedelta(seconds=seg)
+            e = max(0, (alvo - agora).total_seconds())
+            if e > 0:
+                await asyncio.sleep(e)
+            self.iq.atualizar()
+        except:
+            pass
+
+    async def corrigir(self, sinal):
+        """Executa a operação e ENVIA CORREÇÃO no Telegram"""
+        at = sinal['ativo']
+        d = sinal['direcao']
+        conf = sinal.get('confianca', 0)
+        
+        try:
+            # Aguarda a vela abrir
+            await self.esperar(8)
+            v = self.iq.velas[at]
+            if len(v) < 2:
+                self.op = False
+                return
+                
+            pc = v[-1]['open']
+            hora = v[-1]['time'].strftime('%H:%M')
+            print(f"\n  ⚛️ {at}-OTC {d} | OPEN:{pc:.5f} | Vela:{hora}")
+            
+            # Aguarda 5 segundos para ver resultado
+            await self.esperar(5)
+            v = self.iq.velas[at]
+            
+            # ✅ VERIFICA SE GANHOU
+            if len(v) > 0 and self.bateu(d, pc, v[-1]):
+                r = self.placar.win(0)
+                print(f"  ✅ {r}")
+                self.placar.registrar(at, d, conf, "WIN")
+                
+                # 📤 ENVIA CORREÇÃO WIN NO TELEGRAM
+                self.tg.send(self.fmt_corr(r, sinal))
+                
+                # Atualiza stats do Professor
+                self.professor.registrar('win')
+                self.professor.atualizar_stats(at, 'win')
+                
+                self.op = False
+                return
+                
+            # ❌ PERDEU A PRIMEIRA
+            print(f"  ❌ Principal")
+            self.placar.registrar(at, d, conf, "LOSS")
+            
+            # 🔄 TENTA GALE 1
+            stats = self.placar.get_stats()
+            if stats['losses'] < 3:  # Máximo 3 perdas antes de parar
+                v = self.iq.velas[at]
+                pg = v[-1]['open'] if len(v) > 0 else pc
+                print(f"  🔄 GALE 1 | OPEN:{pg:.5f}")
+                
+                await self.esperar(5)
+                v = self.iq.velas[at]
+                
+                if len(v) > 0 and self.bateu(d, pg, v[-1]):
+                    r = self.placar.win(1)
+                    print(f"  ✅ {r}")
+                    self.placar.registrar(at, d, conf, "WIN GALE 1", is_gale=True)
+                    
+                    # 📤 ENVIA CORREÇÃO WIN GALE 1
+                    self.tg.send(self.fmt_corr(r, sinal))
+                    
+                    self.professor.registrar('win')
+                    self.professor.atualizar_stats(at, 'win')
+                    self.op = False
+                    return
+                    
+                # ❌ PERDEU O GALE TAMBÉM
+                print(f"  ❌ GALE 1")
+                r = self.placar.loss()
+                print(f"  🔴 {r}")
+                self.placar.registrar(at, d, conf, "LOSS GALE 1", is_gale=True)
+                
+                # 📤 ENVIA CORREÇÃO LOSS
+                self.tg.send(self.fmt_corr(r, sinal))
+                
+                # 📤 ENVIA ANÁLISE DO PROFESSOR
+                explicacao = self.professor.explicar_loss(sinal, self.iq.velas[at])
+                self.tg.send(explicacao)
+                print(f"  🧠 Loss explicado!")
+                
+                self.professor.registrar('loss')
+                self.professor.atualizar_stats(at, 'loss')
+            else:
+                # 🛑 NÃO FAZ GALE (muitas perdas)
+                r = self.placar.loss()
+                print(f"  🔴 {r} (sem Gale)")
+                self.placar.registrar(at, d, conf, "LOSS")
+                
+                # 📤 ENVIA CORREÇÃO LOSS
+                self.tg.send(self.fmt_corr(r, sinal))
+                
+                self.professor.registrar('loss')
+                self.professor.atualizar_stats(at, 'loss')
+                
+                # 📤 ENVIA AVISO SOBRE O GALE
+                aviso = f"🛑 *SEM GALE*\n\n{at}-OTC {d}\n📊 Muitas perdas consecutivas"
+                self.tg.send(aviso)
+                
+            self.op = False
+            
+        except Exception as e:
+            print(f"  ❌ {e}")
+            self.op = False
+
+    # ════════════════════════════════════════════════════════
+    # 🚀 RUN
+    # ════════════════════════════════════════════════════════
     async def run(self):
         banner()
         print(f"\n  ⚛️ Iniciando Quantum IA Pro - Estratégias Profissionais\n")
@@ -1016,6 +1165,7 @@ class Bot:
         print(f"     ⚡ Momentum Pro")
         print(f"     🎯 Price Action Pro")
         print(f"     🌊 Volatilidade Pro\n")
+        print(f"  {C.G}📤 Correções enviadas no Telegram após cada sinal{C.E}\n")
         
         if not self.iq.conectar():
             print(f"  ❌ Falha conexão IQ Option!")
@@ -1025,7 +1175,7 @@ class Bot:
         self.ultimo_dia = datetime.now(FUSO_BR).day
         
         print(f"\n  ✅ QUANTUM IA PRO | Gerando sinais...\n")
-        self.tg.send(f"⚛️ *QUANTUM IA PRO - SINAIS*\n👨‍🏫 Estratégias Profissionais\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n\n🏆 *5 Estratégias Avançadas:*\n🏯 Ichimoku\n🏔️ S/R\n⚡ Momentum\n🎯 Price Action\n🌊 Volatilidade")
+        self.tg.send(f"⚛️ *QUANTUM IA PRO - SINAIS*\n👨‍🏫 Estratégias Profissionais\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n\n🏆 *5 Estratégias Avançadas:*\n🏯 Ichimoku\n🏔️ S/R\n⚡ Momentum\n🎯 Price Action\n🌊 Volatilidade\n\n📤 *Correções enviadas após cada sinal*")
         
         while True:
             try:
@@ -1046,23 +1196,29 @@ class Bot:
                     except:
                         self.iq.ok = False
                         
-                if time.time() - self.ult > 25:
+                if not self.op and time.time() - self.ult > 25:
                     try:
                         sinal = self.quantum.melhor_par(self.iq.velas, self.professor.stats_pares)
                         
                         if sinal and self.pode_enviar(sinal['ativo']):
+                            self.op = True
                             self.sinais += 1
                             self.registrar_envio(sinal['ativo'])
                             
                             he = (agora.replace(second=0, microsecond=0) + timedelta(minutes=1)).strftime('%H:%M')
                             print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias', 0)}/5 | ⏰ {he}")
                             
+                            # 📤 ENVIA SINAL
                             self.tg.send(self.fmt_sinal(sinal))
                             
+                            # 📤 ENVIA ANÁLISE DO PROFESSOR
                             explicacao = self.professor.explicar_entrada(sinal, self.iq.velas[sinal['ativo']])
                             self.tg.send(explicacao)
                             
                             self.ult = time.time()
+                            
+                            # 📤 CRIA TAREFA PARA CORRIGIR E ENVIAR CORREÇÃO
+                            asyncio.create_task(self.corrigir(sinal))
                     except Exception as e:
                         pass
                         
@@ -1070,7 +1226,7 @@ class Bot:
                     try:
                         stats = self.placar.get_stats()
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{stats['wins']}W 🔴{stats['losses']}L 🎯{stats['taxa']}%")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L 🎯{stats['taxa']}%")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:
                         pass
@@ -1080,8 +1236,8 @@ class Bot:
             except KeyboardInterrupt:
                 clear()
                 stats = self.placar.get_stats()
-                print(f"\n👋 🟢{stats['wins']}W 🔴{stats['losses']}L | 🎯{stats['taxa']}% | Total: {stats['total']}\n")
-                self.tg.send(f"⚠️ *Desligado*\n🟢{stats['wins']}W 🔴{stats['losses']}L\n🎯{stats['taxa']}%\nTotal: {stats['total']}")
+                print(f"\n👋 🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L | 🎯{stats['taxa']}% | Total: {stats['total']}\n")
+                self.tg.send(f"⚠️ *Desligado*\n🟢{stats['wins']}W 🟡{stats['gales']}G1 🔴{stats['losses']}L\n🎯{stats['taxa']}%\nTotal: {stats['total']}")
                 if self.iq.api:
                     try:
                         self.iq.api.close()
