@@ -4,7 +4,7 @@
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
 ║   👨‍🏫 Trader Professor | Ensina Alunos       ║
 ║   🏆 3/5 = Entra | 📊 Placar Corrigido     ║
-║   🔒 Bloqueio 7min/par | 🔄 Reanálise      ║
+║   🔒 Bloqueio 7min/par | 🏷️ Filtro Zonas   ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
 ╚══════════════════════════════════════════════╝
 """
@@ -26,7 +26,7 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Professor | Ensina Alunos       ║")
+    print(f"║   👨‍🏫 Trader Professor | 🏷️ Filtro Zonas     ║")
     print(f"║   🏆 3/5 = Entra | 🔒 Bloqueio 7min/par   ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
@@ -70,9 +70,6 @@ from iqoptionapi.stable_api import IQ_Option
 
 ATIVOS_OTC={"EURUSD":"EURUSD-OTC","GBPUSD":"GBPUSD-OTC","EURGBP":"EURGBP-OTC"}
 
-# ═══════════════════════════════════════════
-# PLACAR CORRIGIDO
-# ═══════════════════════════════════════════
 class Placar:
     def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20);self.ops=[]
     def win(self,g=0):
@@ -80,10 +77,8 @@ class Placar:
         else:self.g1+=1;self.s.append('🟡');return"✅ WIN GALE 1"
     def loss(self):self.l+=1;self.s.append('🔴');return"❌ LOSS"
     def registrar(self,ativo,direcao,conf,resultado,is_gale=False):
-        agora=datetime.now(FUSO_BR)
-        hora=agora.strftime('%H:%M')
-        sufixo="¹" if is_gale else ""
-        emoji="✅️" if "WIN" in resultado else "🔴"
+        agora=datetime.now(FUSO_BR);hora=agora.strftime('%H:%M')
+        sufixo="¹" if is_gale else "";emoji="✅️" if "WIN" in resultado else "🔴"
         self.ops.append(f"M1 {ativo}-OTC {direcao} {hora} {emoji}{sufixo}")
     def zerar(self):self.w=0;self.l=0;self.g1=0;self.s.clear();self.ops.clear()
 
@@ -210,6 +205,45 @@ class Tsunami:
         except:return None,0
 
 # ═══════════════════════════════════════════
+# 🏷️ FILTRO DE ZONAS DE PREÇO
+# ═══════════════════════════════════════════
+class FiltroZonasPreco:
+    def __init__(self):
+        self.periodo = 20
+    
+    def analisar(self, velas):
+        if len(velas) < self.periodo:
+            return 'NEUTRO', 50, 0
+        
+        precos = [v['close'] for v in velas[-self.periodo:]]
+        maximo = max(precos)
+        minimo = min(precos)
+        
+        if maximo == minimo:
+            return 'NEUTRO', 50, 0
+        
+        preco_atual = precos[-1]
+        percentual = ((preco_atual - minimo) / (maximo - minimo)) * 100
+        
+        if percentual > 60:
+            return 'ZONA_ALTA', percentual, minimo
+        elif percentual < 40:
+            return 'ZONA_DESCONTO', percentual, maximo
+        else:
+            return 'NEUTRO', percentual, 0
+    
+    def sinal_valido(self, direcao, zona, percentual):
+        if direcao == 'CALL' and zona == 'ZONA_ALTA' and percentual > 75:
+            return False, f"🚫 CALL na ZONA ALTA ({percentual:.0f}%) - Comprando no TOPO"
+        if direcao == 'PUT' and zona == 'ZONA_DESCONTO' and percentual < 25:
+            return False, f"🚫 PUT na ZONA DESCONTO ({percentual:.0f}%) - Vendendo no FUNDO"
+        if direcao == 'CALL' and zona == 'ZONA_DESCONTO':
+            return True, f"✅ CALL na Zona de DESCONTO ({percentual:.0f}%)"
+        if direcao == 'PUT' and zona == 'ZONA_ALTA':
+            return True, f"✅ PUT na Zona ALTA ({percentual:.0f}%)"
+        return True, f"🟡 Zona NEUTRA ({percentual:.0f}%)"
+
+# ═══════════════════════════════════════════
 # ⚛️ QUANTUM IA - 3/5 CONFIRMAM
 # ═══════════════════════════════════════════
 class QuantumIA:
@@ -217,6 +251,8 @@ class QuantumIA:
         self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
         self.raio_negro=RaioNegro();self.tsunami=Tsunami()
         self.min_estrategias=3
+        self.filtro_zonas=FiltroZonasPreco()
+        self.sinais_bloqueados_zona=0
     def analisar_completo(self,v):
         try:
             if len(v)<30:return None,0,0,{}
@@ -232,10 +268,25 @@ class QuantumIA:
                 except:detalhes[nome]="❌"
             total=len(resultados)
             if total<self.min_estrategias:return None,0,total,detalhes
+            
             if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
-                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['CALL'])
+                # 🏷️ Verifica zona ANTES de retornar
+                zona, pct, _ = self.filtro_zonas.analisar(v)
+                if zona == 'ZONA_ALTA' and pct > 75:
+                    self.sinais_bloqueados_zona += 1
+                    return None, 0, total, detalhes  # Bloqueia CALL no TOPO
+                return'CALL',min(conf+(total-3)*4,95),total,detalhes
+            
             if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
-                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['PUT'])
+                # 🏷️ Verifica zona ANTES de retornar
+                zona, pct, _ = self.filtro_zonas.analisar(v)
+                if zona == 'ZONA_DESCONTO' and pct < 25:
+                    self.sinais_bloqueados_zona += 1
+                    return None, 0, total, detalhes  # Bloqueia PUT no FUNDO
+                return'PUT',min(conf+(total-3)*4,95),total,detalhes
+            
             return None,0,total,detalhes
         except:return None,0,0,{}
     def melhor_par(self,velas_dict,bloqueados,stats_pares):
@@ -318,8 +369,7 @@ class TraderProfessor:
     def explicar_loss(self,sinal,velas):
         ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
         leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
-        causas=[]
-        v=velas[-1];corpo=abs(v['close']-v['open'])
+        causas=[];v=velas[-1];corpo=abs(v['close']-v['open'])
         if corpo>0:
             if direcao=='CALL' and(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
             elif direcao=='PUT' and(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
@@ -388,21 +438,16 @@ class Bot:
         self.tg=Telegram(TOKEN,CHAT);self.m=QuantumIA();self.p=Placar();self.iq=IQAPI(EMAIL,SENHA,ATIVOS_OTC)
         self.professor=TraderProfessor()
         self.op=False;self.g=0;self.ult=0;self.sinais=0
-        self.ultimo_sinal_ativo={}  # 🔒 Bloqueio por par
-        self.bloqueio_par_segundos=420  # 🔒 7 minutos
+        self.ultimo_sinal_ativo={}
+        self.bloqueio_par_segundos=420
         self.ultimo_dia=datetime.now(FUSO_BR).day;self.placar_enviado=False
 
-    # 🔒 NOVO: Verifica se o par está bloqueado
     def pode_enviar(self,ativo):
         agora=time.time()
         if ativo in self.ultimo_sinal_ativo:
-            if agora-self.ultimo_sinal_ativo[ativo]<self.bloqueio_par_segundos:
-                return False
+            if agora-self.ultimo_sinal_ativo[ativo]<self.bloqueio_par_segundos:return False
         return True
-    
-    def registrar_envio(self,ativo):
-        self.ultimo_sinal_ativo[ativo]=time.time()
-    
+    def registrar_envio(self,ativo):self.ultimo_sinal_ativo[ativo]=time.time()
     def _barra(self,pct):p=int(pct/10);return '█'*p+'░'*(10-p)
 
     def fechar_dia(self):
@@ -430,6 +475,7 @@ class Bot:
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
+│ 🏷️ Zonas bloqueadas: {self.m.sinais_bloqueados_zona} │
 └──────────────────────────┘
 
 📋 *Operações do Dia:*
@@ -441,7 +487,8 @@ class Bot:
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
-        self.p.zerar();self.sinais=0;self.ultimo_sinal_ativo.clear()
+        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_zona=0
+        self.ultimo_sinal_ativo.clear()
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
     def fmt_sinal(self,s):
@@ -484,9 +531,7 @@ class Bot:
     async def corrigir(self,sinal):
         at=sinal['ativo'];d=sinal['direcao'];conf=sinal.get('confianca',0)
         try:
-            # 🔄 Força atualização das velas (reanálise)
             self.iq.atualizar()
-            
             await self.esperar(8);v=self.iq.velas[at]
             if len(v)<2:self.op=False;return
             pc=v[-1]['open'];hora=v[-1]['time'].strftime('%H:%M')
@@ -518,12 +563,12 @@ class Bot:
         banner()
         print(f"\n  ⚛️ Iniciando Quantum IA - Trader Professor...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🔒 Bloqueio: 7 minutos por par\n")
+        print(f"  🔒 Bloqueio: 7 minutos por par | 🏷️ Filtro Zonas\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 🔒 Bloqueio 7min/par\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n🔒 Bloqueio 7 minutos por par\n📊 Placar Corrigido\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 🔒 Bloqueio 7min/par | 🏷️ Filtro Zonas\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n🔒 Bloqueio 7 minutos por par\n🏷️ Filtro Zonas de Preço\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -531,23 +576,18 @@ class Bot:
                 if agora.hour==23 and agora.minute==59 and not self.placar_enviado:
                     self.fechar_dia();self.placar_enviado=True
                 if agora.day!=self.ultimo_dia:self.ultimo_dia=agora.day;self.placar_enviado=False
-                
-                # 🔄 Atualiza velas e tendências a cada 30s (reanálise)
                 if agora.second in[0,30]:
                     try:self.iq.atualizar();self.professor.atualizar_dados(self.iq.velas)
                     except:self.iq.ok=False
-                
                 if not self.op:
                     try:
-                        # 🔒 Pega lista de pares bloqueados
                         bloqueados=[a for a in ATIVOS_OTC if not self.pode_enviar(a)]
                         sinal=self.m.melhor_par(self.iq.velas,bloqueados,self.professor.stats_pares)
                         if sinal and time.time()-self.ult>25:
                             self.op=True;self.sinais+=1;self.registrar_envio(sinal['ativo'])
                             he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
                             print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/5 | ⏰ {he}")
-                            if bloqueados:
-                                print(f"  🔒 Pares bloqueados: {', '.join(bloqueados)}")
+                            if bloqueados:print(f"  🔒 Pares bloqueados: {', '.join(bloqueados)}")
                             self.tg.send(self.fmt_sinal(sinal))
                             explicacao=self.professor.explicar_entrada(sinal,self.iq.velas[sinal['ativo']])
                             self.tg.send(explicacao)
@@ -563,7 +603,7 @@ class Bot:
                         bloqueados=[a for a in ATIVOS_OTC if not self.pode_enviar(a)]
                         info_bloqueio=f" | 🔒 {','.join(bloqueados)}" if bloqueados else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}{info_bloqueio}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🏷️{self.m.sinais_bloqueados_zona}{info_bloqueio}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:pass
                 await asyncio.sleep(3)
