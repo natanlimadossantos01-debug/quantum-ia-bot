@@ -2,9 +2,10 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Professor | Ensina Alunos       ║
-║   🏆 3/5 = Entra | 📊 Placar Corrigido     ║
+║   👨‍🏫 Trader Professor | Máxima Segurança     ║
+║   🏆 4/5 = Entra | 🛡️ Filtro de Pavio      ║
 ║   🔒 Bloqueio 7min/par | 🔄 Reanálise      ║
+║   📊 Placar Corrigido | 📋 Lista Diária    ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
 ╚══════════════════════════════════════════════╝
 """
@@ -26,8 +27,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Professor | Ensina Alunos       ║")
-    print(f"║   🏆 3/5 = Entra | 🔒 Bloqueio 7min/par   ║")
+    print(f"║   👨‍🏫 Trader Professor | Máxima Segurança     ║")
+    print(f"║   🏆 4/5 + 🛡️ Pavio | 🔒 7min/par         ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -205,34 +206,63 @@ class Tsunami:
         except:return None,0
 
 # ═══════════════════════════════════════════
-# ⚛️ QUANTUM IA - 3/5 CONFIRMAM
+# ⚛️ QUANTUM IA - 4/5 CONFIRMAM + FILTRO PAVIO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
         self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
         self.raio_negro=RaioNegro();self.tsunami=Tsunami()
-        self.min_estrategias=3
+        self.min_estrategias=4  # 🏆 4/5 CONFIRMAM
+        self.sinais_bloqueados_pavio=0
+
     def analisar_completo(self,v):
         try:
             if len(v)<30:return None,0,0,{}
-            resultados=[];votos={'CALL':0,'PUT':0};confiancas={'CALL':[],'PUT':[]};detalhes={}
+            
+            # 🛡️ FILTRO DE PAVIO
+            tem_pavio_sup=False;tem_pavio_inf=False
+            if len(v)>=1:
+                va=v[-1];corpo=abs(va['close']-va['open'])
+                if corpo>0:
+                    pavio_sup=va['high']-max(va['close'],va['open'])
+                    pavio_inf=min(va['close'],va['open'])-va['low']
+                    tem_pavio_sup=pavio_sup>corpo*0.6
+                    tem_pavio_inf=pavio_inf>corpo*0.6
+            
+            resultados=[];votos={'CALL':0,'PUT':0}
+            confiancas={'CALL':[],'PUT':[]};detalhes={}
             estrategias=[('💀 Mortalha',self.mortalha),('🐜 Formiga',self.formiga),
                         ('🏰 Fortaleza',self.fortaleza),('⚡ Raio Negro',self.raio_negro),
                         ('🌊 Tsunami',self.tsunami)]
+            
             for nome,est in estrategias:
                 try:
                     d,c=est.analisar(v)
-                    if d:resultados.append((nome,d,c));votos[d]+=1;confiancas[d].append(c);detalhes[nome]=f"{d} {c:.0f}%"
+                    if d:
+                        # 🛡️ Bloqueia voto se tiver pavio contrário
+                        if d=='CALL' and tem_pavio_sup:
+                            detalhes[nome]=f"{d} {c:.0f}% 🚫"
+                            continue
+                        if d=='PUT' and tem_pavio_inf:
+                            detalhes[nome]=f"{d} {c:.0f}% 🚫"
+                            continue
+                        resultados.append((nome,d,c));votos[d]+=1
+                        confiancas[d].append(c);detalhes[nome]=f"{d} {c:.0f}%"
                     else:detalhes[nome]="⏸️"
                 except:detalhes[nome]="❌"
+            
             total=len(resultados)
-            if total<self.min_estrategias:return None,0,total,detalhes
+            if total<self.min_estrategias:
+                if tem_pavio_sup or tem_pavio_inf:self.sinais_bloqueados_pavio+=1
+                return None,0,total,detalhes
+            
             if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
-                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-4)*3,95),total,detalhes
             if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
-                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-4)*3,95),total,detalhes
             return None,0,total,detalhes
         except:return None,0,0,{}
+
     def melhor_par(self,velas_dict,bloqueados,stats_pares):
         melhor=None;melhor_score=0
         for nome,velas in velas_dict.items():
@@ -302,13 +332,16 @@ class TraderProfessor:
         detalhes=sinal.get('detalhes',{})
         leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
         tendencia=self.tendencias.get(ativo,'NEUTRA')
-        concordaram=[k for k,v in detalhes.items() if '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
-        return f"""👨‍🏫 *ANÁLISE DO TRADER*
+        concordaram=[k for k,v in detalhes.items() if '🚫' not in str(v) and '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
+        bloqueados=[k for k,v in detalhes.items() if '🚫' in str(v)]
+        msg=f"""👨‍🏫 *ANÁLISE DO TRADER*
 
 📊 *Mercado:* {tendencia}
 👁️ *Gráfico:* {leitura}
-✅ *Estratégias ({est}/5):* {', '.join(concordaram) if concordaram else 'Nenhuma'}
-🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"""
+✅ *Estratégias ({est}/5):* {', '.join(concordaram) if concordaram else 'Nenhuma'}"""
+        if bloqueados:msg+=f"\n🛡️ *Bloqueados (pavio):* {', '.join(bloqueados)}"
+        msg+=f"\n🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"
+        return msg
     
     def explicar_loss(self,sinal,velas):
         ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
@@ -419,6 +452,7 @@ class Bot:
 │ 🎯 Assertividade: {tx}%   │
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
+│ 🛡️ Pavios bloqueados: {self.m.sinais_bloqueados_pavio} │
 └──────────────────────────┘
 
 📋 *Operações do Dia:*
@@ -430,7 +464,7 @@ class Bot:
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
-        self.p.zerar();self.sinais=0
+        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_pavio=0
         self.ultimo_sinal_ativo.clear()
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
@@ -504,14 +538,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Trader Professor...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Máxima Segurança...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🔒 Bloqueio: 7 minutos por par\n")
+        print(f"  🏆 4/5 Estratégias | 🛡️ Filtro Pavio | 🔒 Bloqueio 7min/par\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 3/5 = Entra | 🔒 Bloqueio 7min/par\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - TRADER PROFESSOR*\n👨‍🏫 Análise do Trader\n🏆 3/5 Estratégias = Entra\n🔒 Bloqueio 7 minutos por par\n📊 Placar Corrigido\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 4/5 | 🛡️ Pavio | 🔒 7min\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - MÁXIMA SEGURANÇA*\n👨‍🏫 Trader Professor\n🏆 4/5 Estratégias = Entra\n🛡️ Filtro de Pavio\n🔒 Bloqueio 7min/par\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -546,7 +580,7 @@ class Bot:
                         bloqueados=[a for a in ATIVOS_OTC if not self.pode_enviar(a)]
                         info_bloqueio=f" | 🔒 {','.join(bloqueados)}" if bloqueados else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro}{info_bloqueio}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_bloqueio}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:pass
                 await asyncio.sleep(3)
