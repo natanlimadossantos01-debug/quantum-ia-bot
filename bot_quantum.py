@@ -2,8 +2,8 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Professor | Máxima Segurança     ║
-║   🏆 4/5 = Entra | 🛡️ Filtro de Pavio      ║
+║   👨‍🏫 Trader Professor | 5 Pares OTC          ║
+║   🏆 3/5 = Entra | 🛡️ Filtro de Pavio      ║
 ║   🔒 Bloqueio 7min/par | 🔄 Reanálise      ║
 ║   📊 Placar Corrigido | 📋 Lista Diária    ║
 ║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
@@ -27,8 +27,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Professor | Máxima Segurança     ║")
-    print(f"║   🏆 4/5 + 🛡️ Pavio | 🔒 7min/par         ║")
+    print(f"║   👨‍🏫 Trader Professor | 5 Pares OTC          ║")
+    print(f"║   🏆 3/5 = Entra | 🛡️ Filtro Pavio         ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -69,7 +69,16 @@ TOKEN=cfg['token'];CHAT=cfg['chat'];EMAIL=cfg['email'];SENHA=cfg['senha']
 
 from iqoptionapi.stable_api import IQ_Option
 
-ATIVOS_OTC={"EURUSD":"EURUSD-OTC","GBPUSD":"GBPUSD-OTC","EURGBP":"EURGBP-OTC"}
+# ═══════════════════════════════════════════
+# 5 PARES OTC
+# ═══════════════════════════════════════════
+ATIVOS_OTC={
+    "EURUSD":"EURUSD-OTC",
+    "GBPUSD":"GBPUSD-OTC",
+    "EURGBP":"EURGBP-OTC",
+    "USDJPY":"USDJPY-OTC",
+    "AUDUSD":"AUDUSD-OTC"
+}
 
 class Placar:
     def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20);self.ops=[]
@@ -206,13 +215,13 @@ class Tsunami:
         except:return None,0
 
 # ═══════════════════════════════════════════
-# ⚛️ QUANTUM IA - 4/5 CONFIRMAM + FILTRO PAVIO
+# ⚛️ QUANTUM IA - 3/5 CONFIRMAM + FILTRO PAVIO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
         self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
         self.raio_negro=RaioNegro();self.tsunami=Tsunami()
-        self.min_estrategias=4  # 🏆 4/5 CONFIRMAM
+        self.min_estrategias=3  # 🏆 3/5 CONFIRMAM
         self.sinais_bloqueados_pavio=0
 
     def analisar_completo(self,v):
@@ -239,7 +248,6 @@ class QuantumIA:
                 try:
                     d,c=est.analisar(v)
                     if d:
-                        # 🛡️ Bloqueia voto se tiver pavio contrário
                         if d=='CALL' and tem_pavio_sup:
                             detalhes[nome]=f"{d} {c:.0f}% 🚫"
                             continue
@@ -257,9 +265,9 @@ class QuantumIA:
                 return None,0,total,detalhes
             
             if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
-                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-4)*3,95),total,detalhes
+                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-3)*4,95),total,detalhes
             if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
-                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-4)*3,95),total,detalhes
+                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-3)*4,95),total,detalhes
             return None,0,total,detalhes
         except:return None,0,0,{}
 
@@ -538,14 +546,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Máxima Segurança...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - 5 Pares...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🏆 4/5 Estratégias | 🛡️ Filtro Pavio | 🔒 Bloqueio 7min/par\n")
+        print(f"  📊 5 Pares | 🏆 3/5 | 🛡️ Filtro Pavio | 🔒 7min/par\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 🏆 4/5 | 🛡️ Pavio | 🔒 7min\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - MÁXIMA SEGURANÇA*\n👨‍🏫 Trader Professor\n🏆 4/5 Estratégias = Entra\n🛡️ Filtro de Pavio\n🔒 Bloqueio 7min/par\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 5 Pares | 🏆 3/5 | 🛡️ Pavio | 🔒 7min\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - 5 PARES*\n👨‍🏫 Trader Professor\n📊 5 Pares OTC\n🏆 3/5 Estratégias = Entra\n🛡️ Filtro de Pavio\n🔒 Bloqueio 7min/par\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
