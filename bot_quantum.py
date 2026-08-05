@@ -2,11 +2,10 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Professor | 5 Pares OTC          ║
-║   🏆 3/5 = Entra | 🛡️ Filtro de Pavio      ║
-║   🔒 Bloqueio 7min/par | 🔄 Reanálise      ║
-║   📊 Placar Corrigido | 📋 Lista Diária    ║
-║   ☁️ Cloud Ready | 🕐 Horário Brasil       ║
+║   👨‍🏫 Trader Professor | 12 Estratégias OTC   ║
+║   🏆 5/12 = Entra | 🛡️ Filtro Pavio        ║
+║   🔒 Bloqueio 7min/par | 5 Pares OTC       ║
+║   📊 Placar Corrigido | ☁️ Cloud Ready     ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
@@ -28,7 +27,7 @@ def banner():
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   👨‍🏫 Trader Professor | 5 Pares OTC          ║")
-    print(f"║   🏆 3/5 = Entra | 🛡️ Filtro Pavio         ║")
+    print(f"║   🏆 5/12 = Entra | 🛡️ Filtro Pavio        ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -99,7 +98,7 @@ class Telegram:
         except:pass
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS COMPROVADAS
+# 5 ESTRATÉGIAS ORIGINAIS
 # ═══════════════════════════════════════════
 class Mortalha:
     def sma(self,d,p):
@@ -215,20 +214,118 @@ class Tsunami:
         except:return None,0
 
 # ═══════════════════════════════════════════
-# ⚛️ QUANTUM IA - 3/5 CONFIRMAM + FILTRO PAVIO
+# 🔥 3 ESTRATÉGIAS OTC
+# ═══════════════════════════════════════════
+class FundoTopo:
+    def analisar(self,v):
+        try:
+            if len(v)<15:return None,0
+            precos=[x['close'] for x in v]
+            max_10=max(precos[-10:]);min_10=min(precos[-10:]);atual=precos[-1]
+            if min_10>0 and(atual-min_10)/min_10<0.0003:return'CALL',82
+            if atual>0 and(max_10-atual)/atual<0.0003:return'PUT',82
+            return None,0
+        except:return None,0
+
+class Sequencia:
+    def analisar(self,v):
+        try:
+            if len(v)<6:return None,0
+            precos=[x['close'] for x in v]
+            altas=sum(1 for i in range(-3,0) if precos[i]>precos[i-1])
+            if altas==3:return'PUT',78
+            if altas==0:return'CALL',78
+            return None,0
+        except:return None,0
+
+class Rejeicao:
+    def analisar(self,v):
+        try:
+            if len(v)<3:return None,0
+            vela=v[-1];corpo=abs(vela['close']-vela['open'])
+            if corpo==0:return None,0
+            pavio_sup=vela['high']-max(vela['close'],vela['open'])
+            pavio_inf=min(vela['close'],vela['open'])-vela['low']
+            if pavio_inf>corpo*3:return'CALL',85
+            if pavio_sup>corpo*3:return'PUT',85
+            return None,0
+        except:return None,0
+
+# ═══════════════════════════════════════════
+# 🆕 4 ESTRATÉGIAS DE QUADRANTES
+# ═══════════════════════════════════════════
+class MHI1_Adaptada:
+    def analisar(self,v):
+        try:
+            if len(v)<8:return None,0
+            velas_ant=v[-6:-3]
+            ups=sum(1 for x in velas_ant if x['close']>x['open'])
+            downs=3-ups
+            if 0<ups<downs:return'CALL',72
+            if 0<downs<ups:return'PUT',72
+            return None,0
+        except:return None,0
+
+class Vituxo_Adaptada:
+    def analisar(self,v):
+        try:
+            if len(v)<8:return None,0
+            velas_ant=v[-8:-5]
+            ups=sum(1 for x in velas_ant if x['close']>x['open'])
+            downs=3-ups
+            if ups>downs:return'CALL',70
+            if downs>ups:return'PUT',70
+            return None,0
+        except:return None,0
+
+class MilhaoMinoria_Adaptada:
+    def analisar(self,v):
+        try:
+            if len(v)<10:return None,0
+            velas_ant=v[-10:-5]
+            ups=sum(1 for x in velas_ant if x['close']>x['open'])
+            downs=5-ups
+            if 0<ups<downs:return'CALL',74
+            if 0<downs<ups:return'PUT',74
+            return None,0
+        except:return None,0
+
+class DAKA_Adaptada:
+    def analisar(self,v):
+        try:
+            if len(v)<9:return None,0
+            vela_ref=v[-6]
+            if vela_ref['close']>vela_ref['open']:return'CALL',68
+            if vela_ref['close']<vela_ref['open']:return'PUT',68
+            return None,0
+        except:return None,0
+
+# ═══════════════════════════════════════════
+# ⚛️ QUANTUM IA - 5/12 CONFIRMAM + FILTRO PAVIO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
-        self.mortalha=Mortalha();self.formiga=Formiga();self.fortaleza=Fortaleza()
-        self.raio_negro=RaioNegro();self.tsunami=Tsunami()
-        self.min_estrategias=3  # 🏆 3/5 CONFIRMAM
+        self.estrategias=[
+            ('💀 Mortalha',Mortalha()),
+            ('🐜 Formiga',Formiga()),
+            ('🏰 Fortaleza',Fortaleza()),
+            ('⚡ Raio Negro',RaioNegro()),
+            ('🌊 Tsunami',Tsunami()),
+            ('🔥 Fundo/Topo',FundoTopo()),
+            ('🔄 Sequência',Sequencia()),
+            ('🕯️ Rejeição',Rejeicao()),
+            ('📊 MHI 1',MHI1_Adaptada()),
+            ('📊 VITUXO',Vituxo_Adaptada()),
+            ('📊 Milhão Min',MilhaoMinoria_Adaptada()),
+            ('📊 DAKA',DAKA_Adaptada())
+        ]
+        self.min_estrategias=5
         self.sinais_bloqueados_pavio=0
 
     def analisar_completo(self,v):
         try:
             if len(v)<30:return None,0,0,{}
             
-            # 🛡️ FILTRO DE PAVIO
             tem_pavio_sup=False;tem_pavio_inf=False
             if len(v)>=1:
                 va=v[-1];corpo=abs(va['close']-va['open'])
@@ -240,11 +337,8 @@ class QuantumIA:
             
             resultados=[];votos={'CALL':0,'PUT':0}
             confiancas={'CALL':[],'PUT':[]};detalhes={}
-            estrategias=[('💀 Mortalha',self.mortalha),('🐜 Formiga',self.formiga),
-                        ('🏰 Fortaleza',self.fortaleza),('⚡ Raio Negro',self.raio_negro),
-                        ('🌊 Tsunami',self.tsunami)]
             
-            for nome,est in estrategias:
+            for nome,est in self.estrategias:
                 try:
                     d,c=est.analisar(v)
                     if d:
@@ -265,9 +359,9 @@ class QuantumIA:
                 return None,0,total,detalhes
             
             if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
-                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-5)*2,95),total,detalhes
             if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
-                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-3)*4,95),total,detalhes
+                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-5)*2,95),total,detalhes
             return None,0,total,detalhes
         except:return None,0,0,{}
 
@@ -278,7 +372,7 @@ class QuantumIA:
             if len(velas)>=30:
                 d,cf,num,det=self.analisar_completo(velas)
                 if d:
-                    score=cf+(num*5)
+                    score=cf+(num*3)
                     if nome in stats_pares and stats_pares[nome]['total']>=5:score+=stats_pares[nome]['taxa']*0.1
                     if score>melhor_score:melhor_score=score;melhor={'ativo':nome,'direcao':d,'confianca':cf,'estrategias':num,'detalhes':det}
         return melhor
@@ -291,7 +385,6 @@ class TraderProfessor:
         self.historico=deque(maxlen=50)
         self.stats_pares={nome:{'wins':0,'losses':0,'total':0,'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias={nome:"NEUTRA" for nome in ATIVOS_OTC}
-        self.velas_dict={}
         self.losses=deque(maxlen=50)
     
     def atualizar_stats(self,ativo,resultado):
@@ -303,7 +396,6 @@ class TraderProfessor:
             self.stats_pares[ativo]['taxa']=round((w/t)*100,1) if t>0 else 0
     
     def atualizar_dados(self,velas_dict):
-        self.velas_dict=velas_dict
         for nome,velas in velas_dict.items():
             if len(velas)>=21:
                 closes=[v['close'] for v in list(velas)[-21:]]
@@ -346,7 +438,7 @@ class TraderProfessor:
 
 📊 *Mercado:* {tendencia}
 👁️ *Gráfico:* {leitura}
-✅ *Estratégias ({est}/5):* {', '.join(concordaram) if concordaram else 'Nenhuma'}"""
+✅ *Estratégias ({est}/12):* {', '.join(concordaram) if concordaram else 'Nenhuma'}"""
         if bloqueados:msg+=f"\n🛡️ *Bloqueados (pavio):* {', '.join(bloqueados)}"
         msg+=f"\n🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"
         return msg
@@ -488,7 +580,7 @@ class Bot:
 📈 Direção: {s['direcao']} {e}
 ⌛️ Expiração: M1
 📊 Confiança: {s['confianca']:.0f}%
-🧠 Estratégias: {est}/5
+🧠 Estratégias: {est}/12
 
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
@@ -546,14 +638,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - 5 Pares...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - 5 Pares + 12 Estratégias...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  📊 5 Pares | 🏆 3/5 | 🛡️ Filtro Pavio | 🔒 7min/par\n")
+        print(f"  📊 5 Pares | 🏆 5/12 | 🛡️ Filtro Pavio | 🔒 7min/par\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 5 Pares | 🏆 3/5 | 🛡️ Pavio | 🔒 7min\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - 5 PARES*\n👨‍🏫 Trader Professor\n📊 5 Pares OTC\n🏆 3/5 Estratégias = Entra\n🛡️ Filtro de Pavio\n🔒 Bloqueio 7min/par\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 5 Pares | 12 Estratégias | 🏆 5/12\n")
+        self.tg.send(f"⚛️ *QUANTUM IA - 5 PARES + 12 ESTRATÉGIAS*\n👨‍🏫 Trader Professor\n📊 5 Pares OTC\n🏆 5/12 Estratégias = Entra\n🛡️ Filtro de Pavio\n📊 Estratégias de Quadrantes\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -571,7 +663,7 @@ class Bot:
                         if sinal and time.time()-self.ult>25:
                             self.op=True;self.sinais+=1;self.registrar_envio(sinal['ativo'])
                             he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
-                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/5 | ⏰ {he}")
+                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/12 | ⏰ {he}")
                             if bloqueados:print(f"  🔒 Pares bloqueados: {', '.join(bloqueados)}")
                             self.tg.send(self.fmt_sinal(sinal))
                             explicacao=self.professor.explicar_entrada(sinal,self.iq.velas[sinal['ativo']])
