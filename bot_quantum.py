@@ -2,11 +2,12 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   👨‍🏫 Trader Professor | 26 Estratégias OTC   ║
-║   🏆 10/26 = Entra | 🛡️ Filtro Pavio       ║
-║   📊 Catalogador Pro | ⚔️ Filosofia Samurai ║
-║   🔒 Bloqueio 7min/par | 3 Pares OTC       ║
-║   📊 Placar Corrigido | ☁️ Cloud Ready     ║
+║   🧠 Catalogador Inteligente Dinâmico       ║
+║   🎯 Melhor Estratégia + Par do Momento     ║
+║   🔄 Troca Automática | 🛡️ Filtro Pavio    ║
+║   👨‍🏫 Trader Professor | ⚔️ Samurai          ║
+║   📊 26 Estratégias | 3 Pares OTC          ║
+║   🔒 Bloqueio 7min/par | ☁️ Cloud Ready    ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -51,8 +52,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   👨‍🏫 Trader Professor | 26 Estratégias      ║")
-    print(f"║   🏆 10/26 = Entra | ⚔️ Filosofia Samurai  ║")
+    print(f"║   🧠 Catalogador Inteligente Dinâmico       ║")
+    print(f"║   🎯 Melhor Estratégia + Par do Momento     ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -118,45 +119,107 @@ class Telegram:
         except:pass
 
 # ═══════════════════════════════════════════
-# 📊 CATALOGADOR PROFISSIONAL
+# 🧠 CATALOGADOR INTELIGENTE DINÂMICO
 # ═══════════════════════════════════════════
-class CatalogadorPro:
+class CatalogadorInteligente:
     def __init__(self):
-        self.performance = {}
+        self.performance = {}  # {estrategia|par: {wins, losses, total}}
+        self.combinacao_atual = None  # {'estrategia': nome, 'par': par}
+        self.sinais_na_combinacao = 0
+        self.max_sinais_por_combinacao = 2  # Reavalia a cada 2 sinais
+        self.taxa_minima = 55  # Mínimo para operar
+        self.min_operacoes = 3  # Mínimo para avaliar
         self.total_operacoes = 0
         self.ultimo_relatorio = 0
-    
-    def registrar_resultado(self, estrategia, venceu):
-        if estrategia not in self.performance:
-            self.performance[estrategia] = {'wins': 0, 'losses': 0, 'total': 0, 'taxa': 0}
-        self.performance[estrategia]['total'] += 1
-        if venceu: self.performance[estrategia]['wins'] += 1
-        else: self.performance[estrategia]['losses'] += 1
-        t = self.performance[estrategia]['total']
-        w = self.performance[estrategia]['wins']
-        self.performance[estrategia]['taxa'] = round((w/t)*100, 1) if t > 0 else 0
+        
+    def registrar(self, estrategia, par, venceu):
+        chave = f"{estrategia}|{par}"
+        if chave not in self.performance:
+            self.performance[chave] = {'wins': 0, 'losses': 0, 'total': 0, 'estrategia': estrategia, 'par': par}
+        self.performance[chave]['total'] += 1
+        if venceu: self.performance[chave]['wins'] += 1
+        else: self.performance[chave]['losses'] += 1
         self.total_operacoes += 1
     
-    def get_ranking(self, min_ops=3):
-        ranking = []
-        for nome, p in self.performance.items():
+    def get_taxa(self, estrategia, par):
+        chave = f"{estrategia}|{par}"
+        if chave in self.performance:
+            p = self.performance[chave]
+            return round((p['wins']/p['total'])*100, 1) if p['total'] > 0 else 0
+        return 0
+    
+    def get_melhores(self, min_ops=3):
+        melhores = []
+        for chave, p in self.performance.items():
             if p['total'] >= min_ops:
-                ranking.append({'nome': nome, 'taxa': p['taxa'], 'total': p['total'], 'wins': p['wins'], 'losses': p['losses']})
-        ranking.sort(key=lambda x: x['taxa'], reverse=True)
-        return ranking
+                taxa = (p['wins']/p['total'])*100
+                if taxa >= self.taxa_minima:
+                    melhores.append({
+                        'estrategia': p['estrategia'],
+                        'par': p['par'],
+                        'taxa': round(taxa, 1),
+                        'total': p['total'],
+                        'wins': p['wins'],
+                        'losses': p['losses']
+                    })
+        melhores.sort(key=lambda x: x['taxa'], reverse=True)
+        return melhores
+    
+    def escolher_melhor(self):
+        melhores = self.get_melhores(self.min_operacoes)
+        return melhores[0] if melhores else None
+    
+    def precisa_trocar(self):
+        if not self.combinacao_atual:
+            return True
+        
+        # Troca após N sinais na mesma combinação
+        if self.sinais_na_combinacao >= self.max_sinais_por_combinacao:
+            return True
+        
+        # Verifica se a taxa atual caiu abaixo do mínimo
+        taxa_atual = self.get_taxa(
+            self.combinacao_atual['estrategia'],
+            self.combinacao_atual['par']
+        )
+        if taxa_atual < self.taxa_minima:
+            return True
+        
+        # Verifica se apareceu combinação MUITO melhor
+        melhor = self.escolher_melhor()
+        if melhor and melhor['taxa'] > taxa_atual + 10:  # 10% melhor
+            return True
+        
+        return False
+    
+    def atualizar_combinacao(self):
+        if self.precisa_trocar():
+            melhor = self.escolher_melhor()
+            if melhor:
+                self.combinacao_atual = {
+                    'estrategia': melhor['estrategia'],
+                    'par': melhor['par'],
+                    'taxa': melhor['taxa']
+                }
+                self.sinais_na_combinacao = 0
+                return True, melhor
+        return False, self.combinacao_atual
     
     def get_relatorio(self):
-        ranking = self.get_ranking(3)
-        if not ranking: return None
-        msg = "📊 *CATALOGADOR DE ESTRATÉGIAS*\n"
-        msg += f"📈 Total: {self.total_operacoes} operações\n\n"
-        for i, r in enumerate(ranking[:8], 1):
-            emoji = "🏆" if r['taxa'] >= 80 else "⭐" if r['taxa'] >= 65 else "📊"
-            msg += f"{emoji} *{r['nome']}*\n   {r['taxa']}% | {r['wins']}W/{r['losses']}L ({r['total']} ops)\n"
+        melhores = self.get_melhores(2)
+        if not melhores: return None
+        msg = "📊 *CATALOGADOR INTELIGENTE*\n"
+        msg += f"📈 Total: {self.total_operacoes} operações\n"
+        if self.combinacao_atual:
+            msg += f"🎯 *Atual:* {self.combinacao_atual['estrategia']} em {self.combinacao_atual['par']} ({self.combinacao_atual['taxa']}%)\n"
+        msg += f"\n🏆 *Top Combinações:*\n"
+        for i, m in enumerate(melhores[:6], 1):
+            emoji = "🥇" if i==1 else "🥈" if i==2 else "🥉" if i==3 else "📊"
+            msg += f"{emoji} {m['estrategia']} | {m['par']}\n   {m['taxa']}% | {m['wins']}W/{m['losses']}L ({m['total']} ops)\n"
         return msg
 
 # ═══════════════════════════════════════════
-# 12 ESTRATÉGIAS ORIGINAIS (MANTIDAS)
+# 26 ESTRATÉGIAS
 # ═══════════════════════════════════════════
 class Mortalha:
     def sma(self,d,p):
@@ -346,9 +409,6 @@ class DAKA_Adaptada:
             return None,0
         except:return None,0
 
-# ═══════════════════════════════════════════
-# 🆕 14 NOVAS ESTRATÉGIAS (QUADRANTES + 5-2-0 + CHINESA)
-# ═══════════════════════════════════════════
 class MHI2_Quadrante:
     def analisar(self,v):
         try:
@@ -435,10 +495,8 @@ class Estrategia520:
             if len(v)<25:return None,0
             precos=[x['close'] for x in v]
             mm5=np.mean(precos[-5:])
-            media20=np.mean(precos[-20:])
-            std20=np.std(precos[-20:])
-            bs=media20+2*std20;bi=media20-2*std20
-            atual=precos[-1]
+            media20=np.mean(precos[-20:]);std20=np.std(precos[-20:])
+            bs=media20+2*std20;bi=media20-2*std20;atual=precos[-1]
             if atual>mm5 and atual<=bi*1.002:return'CALL',78
             if atual<mm5 and atual>=bs*0.998:return'PUT',78
             return None,0
@@ -451,13 +509,12 @@ class Chinesa30:
             precos=[x['close'] for x in v];highs=[x['high'] for x in v];lows=[x['low'] for x in v]
             ma20=np.mean(precos[-20:])
             suporte=min(lows[-10:]);resistencia=max(highs[-10:])
-            atual=precos[-1];ultima_alta=highs[-1]
-            if atual>ma20 and ultima_alta>resistencia:return'CALL',80
+            atual=precos[-1]
+            if atual>ma20 and highs[-1]>resistencia:return'CALL',80
             if atual<ma20 and lows[-1]<suporte:return'PUT',80
             return None,0
         except:return None,0
 
-# 4 estratégias extras para completar 14
 class SegueTendencia:
     def analisar(self,v):
         try:
@@ -502,18 +559,16 @@ class ReversaoRapida:
         except:return None,0
 
 # ═══════════════════════════════════════════
-# ⚛️ QUANTUM IA - 10/26 CONFIRMAM + FILTRO PAVIO
+# ⚛️ QUANTUM IA - CATALOGADOR DINÂMICO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
         self.estrategias=[
-            # 12 ORIGINAIS
             ('💀 Mortalha',Mortalha()),('🐜 Formiga',Formiga()),('🏰 Fortaleza',Fortaleza()),
             ('⚡ Raio Negro',RaioNegro()),('🌊 Tsunami',Tsunami()),('🔥 Fundo/Topo',FundoTopo()),
             ('🔄 Sequência',Sequencia()),('🕯️ Rejeição',Rejeicao()),
             ('📊 MHI 1',MHI1_Adaptada()),('📊 VITUXO',Vituxo_Adaptada()),
             ('📊 Milhão Min',MilhaoMinoria_Adaptada()),('📊 DAKA',DAKA_Adaptada()),
-            # 14 NOVAS
             ('📊 MHI 2',MHI2_Quadrante()),('📊 MHI 3',MHI3_Quadrante()),
             ('📊 C3',C3_Quadrante()),('📊 MSF',MSF_Quadrante()),
             ('📊 Milhão Maj',MilhaoMaioria_Quadrante()),('📊 3 Vizinhos',TresVizinhos_Quadrante()),
@@ -522,62 +577,91 @@ class QuantumIA:
             ('📈 Segue Tend',SegueTendencia()),('💥 Rompimento',Rompimento()),
             ('💪 Força Tend',ForcaTendencia()),('🔄 Reversão',ReversaoRapida())
         ]
-        self.min_estrategias=10  # 10/26 CONFIRMAM
+        self.catalogador=CatalogadorInteligente()
         self.sinais_bloqueados_pavio=0
-        self.catalogador=CatalogadorPro()
 
-    def analisar_completo(self,v):
-        try:
-            if len(v)<30:return None,0,0,{}
-            tem_pavio_sup=False;tem_pavio_inf=False
-            if len(v)>=1:
-                va=v[-1];corpo=abs(va['close']-va['open'])
-                if corpo>0:
-                    pavio_sup=va['high']-max(va['close'],va['open'])
-                    pavio_inf=min(va['close'],va['open'])-va['low']
-                    tem_pavio_sup=pavio_sup>corpo*0.6
-                    tem_pavio_inf=pavio_inf>corpo*0.6
-            
-            resultados=[];votos={'CALL':0,'PUT':0}
-            confiancas={'CALL':[],'PUT':[]};detalhes={}
-            
-            for nome,est in self.estrategias:
+    def analisar_estrategia(self, nome_estrategia, velas):
+        """Analisa UMA estratégia específica nas velas"""
+        for nome, est in self.estrategias:
+            if nome == nome_estrategia:
                 try:
-                    d,c=est.analisar(v)
-                    if d:
-                        if d=='CALL' and tem_pavio_sup:
-                            detalhes[nome]=f"{d} {c:.0f}% 🚫"
-                            continue
-                        if d=='PUT' and tem_pavio_inf:
-                            detalhes[nome]=f"{d} {c:.0f}% 🚫"
-                            continue
-                        resultados.append((nome,d,c));votos[d]+=1
-                        confiancas[d].append(c);detalhes[nome]=f"{d} {c:.0f}%"
-                    else:detalhes[nome]="⏸️"
-                except:detalhes[nome]="❌"
-            
-            total=len(resultados)
-            if total<self.min_estrategias:
-                if tem_pavio_sup or tem_pavio_inf:self.sinais_bloqueados_pavio+=1
-                return None,0,total,detalhes
-            
-            if votos['CALL']>=self.min_estrategias and votos['CALL']>votos['PUT']:
-                conf=np.mean(confiancas['CALL']);return'CALL',min(conf+(total-10)*1,95),total,detalhes
-            if votos['PUT']>=self.min_estrategias and votos['PUT']>votos['CALL']:
-                conf=np.mean(confiancas['PUT']);return'PUT',min(conf+(total-10)*1,95),total,detalhes
-            return None,0,total,detalhes
-        except:return None,0,0,{}
+                    return est.analisar(velas)
+                except:
+                    return None, 0
+        return None, 0
 
-    def melhor_par(self,velas_dict,bloqueados,stats_pares):
-        melhor=None;melhor_score=0
-        for nome,velas in velas_dict.items():
-            if nome in bloqueados:continue
-            if len(velas)>=30:
-                d,cf,num,det=self.analisar_completo(velas)
-                if d:
-                    score=cf+(num*2)
-                    if nome in stats_pares and stats_pares[nome]['total']>=5:score+=stats_pares[nome]['taxa']*0.1
-                    if score>melhor_score:melhor_score=score;melhor={'ativo':nome,'direcao':d,'confianca':cf,'estrategias':num,'detalhes':det}
+    def obter_sinal_dinamico(self, velas_dict, bloqueados):
+        """🧠 Obtém sinal baseado no Catalogador Inteligente"""
+        
+        # Verifica se precisa trocar de combinação
+        trocou, combinacao = self.catalogador.atualizar_combinacao()
+        
+        if trocou and combinacao:
+            print(f"  🧠 Nova combinação: {combinacao['estrategia']} em {combinacao['par']} ({combinacao['taxa']}%)")
+        
+        if not combinacao:
+            # Primeira execução: testa todas estratégias em todos os pares
+            return self._buscar_qualquer_sinal(velas_dict, bloqueados)
+        
+        # Busca sinal na combinação escolhida
+        par = combinacao['par']
+        estrategia_nome = combinacao['estrategia']
+        
+        if par in velas_dict and par not in bloqueados and len(velas_dict[par]) >= 30:
+            d, c = self.analisar_estrategia(estrategia_nome, velas_dict[par])
+            if d:
+                # 🛡️ Filtro de pavio
+                if self._pavio_ok(velas_dict[par], d):
+                    return {
+                        'ativo': par,
+                        'direcao': d,
+                        'confianca': c,
+                        'estrategia': estrategia_nome,
+                        'estrategias': 1,
+                        'detalhes': {estrategia_nome: f"{d} {c:.0f}%"}
+                    }
+                else:
+                    self.sinais_bloqueados_pavio += 1
+        
+        # Se não encontrou na combinação atual, busca qualquer uma
+        return self._buscar_qualquer_sinal(velas_dict, bloqueados)
+    
+    def _pavio_ok(self, velas, direcao):
+        if len(velas) < 1: return True
+        va = velas[-1]; corpo = abs(va['close'] - va['open'])
+        if corpo == 0: return True
+        if direcao == 'CALL':
+            pavio_sup = va['high'] - max(va['close'], va['open'])
+            return pavio_sup <= corpo * 0.6
+        else:
+            pavio_inf = min(va['close'], va['open']) - va['low']
+            return pavio_inf <= corpo * 0.6
+    
+    def _buscar_qualquer_sinal(self, velas_dict, bloqueados):
+        """Busca sinal em qualquer par/estratégia (fase inicial)"""
+        melhor = None; melhor_score = 0
+        for nome_par, velas in velas_dict.items():
+            if nome_par in bloqueados: continue
+            if len(velas) < 30: continue
+            for nome_est, est in self.estrategias:
+                try:
+                    d, c = est.analisar(velas)
+                    if d and self._pavio_ok(velas, d):
+                        score = c
+                        # Bônus se já tem histórico bom
+                        taxa = self.catalogador.get_taxa(nome_est, nome_par)
+                        if taxa > 60: score += taxa * 0.3
+                        if score > melhor_score:
+                            melhor_score = score
+                            melhor = {
+                                'ativo': nome_par,
+                                'direcao': d,
+                                'confianca': c,
+                                'estrategia': nome_est,
+                                'estrategias': 1,
+                                'detalhes': {nome_est: f"{d} {c:.0f}%"}
+                            }
+                except: pass
         return melhor
 
 # ═══════════════════════════════════════════
@@ -631,22 +715,18 @@ class TraderProfessor:
         return" | ".join(obs),obs,pavio_ok
     
     def explicar_entrada(self,sinal,velas):
-        ativo=sinal['ativo'];direcao=sinal['direcao'];est=sinal.get('estrategias',0);conf=sinal.get('confianca',0)
-        detalhes=sinal.get('detalhes',{})
+        ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
+        est=sinal.get('estrategia','N/A')
         leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
         tendencia=self.tendencias.get(ativo,'NEUTRA')
-        concordaram=[k for k,v in detalhes.items() if '🚫' not in str(v) and '⚠️' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
-        bloqueados=[k for k,v in detalhes.items() if '🚫' in str(v)]
         filosofia=get_filosofia()
-        msg=f"""👨‍🏫 *ANÁLISE DO TRADER*
+        return f"""👨‍🏫 *ANÁLISE DO TRADER*
 
 📊 *Mercado:* {tendencia}
 👁️ *Gráfico:* {leitura}
-✅ *Estratégias ({est}/26):* {', '.join(concordaram[:5])}...
-🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança"""
-        if bloqueados:msg+=f"\n🛡️ *Bloqueados (pavio):* {', '.join(bloqueados)}"
-        msg+=f"\n⚔️ _{filosofia}_"
-        return msg
+🧠 *Estratégia:* {est}
+🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança
+⚔️ _{filosofia}_"""
     
     def explicar_loss(self,sinal,velas):
         ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
@@ -745,7 +825,6 @@ class Bot:
         lista_ops=""
         if self.p.ops:
             for op in self.p.ops[-50:]:lista_ops+=op+"\n"
-        # Relatório do catalogador
         relatorio=self.m.catalogador.get_relatorio()
         msg=f"""📊 *PLACAR DIÁRIO FINALIZADO*
 
@@ -784,7 +863,7 @@ class Bot:
         agora=datetime.now(FUSO_BR)
         he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
         e="🟢" if s['direcao']=='CALL' else "🔴"
-        est=s.get('estrategias',0)
+        est=s.get('estrategia','N/A')
         return f"""⚛️ SINAL QUANTUM IA ⚛️
 
 ⏰ Horário: {he}
@@ -792,7 +871,7 @@ class Bot:
 📈 Direção: {s['direcao']} {e}
 ⌛️ Expiração: M1
 📊 Confiança: {s['confianca']:.0f}%
-🧠 Estratégias: {est}/26
+🧠 Estratégia: {est}
 
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
@@ -819,19 +898,19 @@ class Bot:
 
     async def corrigir(self,sinal):
         at=sinal['ativo'];d=sinal['direcao'];conf=sinal.get('confianca',0)
-        estrategias_usadas=[k for k,v in sinal.get('detalhes',{}).items() if '🚫' not in str(v) and '⏸️' not in str(v) and '❌' not in str(v)]
+        estrategia_nome=sinal.get('estrategia','Desconhecida')
         try:
             self.iq.atualizar()
             await self.esperar(8);v=self.iq.velas[at]
             if len(v)<2:self.op=False;return
             pc=v[-1]['open'];hora=v[-1]['time'].strftime('%H:%M')
-            print(f"\n  ⚛️ {at}-OTC {d} | OPEN:{pc:.5f} | Vela:{hora}")
+            print(f"\n  ⚛️ {at}-OTC {d} | {estrategia_nome} | OPEN:{pc:.5f} | Vela:{hora}")
             await self.esperar(5);v=self.iq.velas[at]
             if len(v)>0 and self.bateu(d,pc,v[-1]):
                 r=self.p.win(0);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN")
                 self.tg.send(self.fmt_corr(r,sinal))
                 self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
-                for est in estrategias_usadas:self.m.catalogador.registrar_resultado(est,True)
+                self.m.catalogador.registrar(estrategia_nome,at,True)
                 self.op=False;return
             print(f"  ❌ Principal")
             self.g=1;v=self.iq.velas[at];pg=v[-1]['open'] if len(v)>0 else pc
@@ -840,12 +919,12 @@ class Bot:
                 r=self.p.win(1);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN GALE 1",is_gale=True)
                 self.tg.send(self.fmt_corr(r,sinal))
                 self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
-                for est in estrategias_usadas:self.m.catalogador.registrar_resultado(est,True)
+                self.m.catalogador.registrar(estrategia_nome,at,True)
                 self.op=False;return
             print(f"  ❌ GALE 1");r=self.p.loss();print(f"  🔴 {r}");self.p.registrar(at,d,conf,"LOSS")
             self.tg.send(self.fmt_corr(r,sinal))
             self.professor.registrar('loss');self.professor.atualizar_stats(at,'loss')
-            for est in estrategias_usadas:self.m.catalogador.registrar_resultado(est,False)
+            self.m.catalogador.registrar(estrategia_nome,at,False)
             explicacao=self.professor.explicar_loss(sinal,self.iq.velas[at])
             self.tg.send(explicacao)
             print(f"  🧠 Loss explicado!")
@@ -854,14 +933,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - 26 Estratégias...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Catalogador Inteligente...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  📊 3 Pares | 🏆 10/26 | 🛡️ Filtro Pavio | 🔒 7min/par | ⚔️ Samurai\n")
+        print(f"  🧠 Catalogador Dinâmico | 🛡️ Filtro Pavio | 🔒 7min/par | ⚔️ Samurai\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 👨‍🏫 Trader Professor | 26 Estratégias | 🏆 10/26 | ⚔️ Samurai\n")
-        self.tg.send(f"⚛️ *QUANTUM IA - 26 ESTRATÉGIAS*\n👨‍🏫 Trader Professor\n📊 3 Pares OTC\n🏆 10/26 Estratégias = Entra\n🛡️ Filtro de Pavio\n📊 Catalogador Pro\n⚔️ Filosofia Samurai\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 🧠 Catalogador Inteligente | 🎯 Melhor Estratégia + Par\n")
+        self.tg.send(f"🧠 *QUANTUM IA - CATALOGADOR INTELIGENTE*\n👨‍🏫 Trader Professor\n📊 26 Estratégias | 3 Pares\n🎯 Melhor Combinação do Momento\n🔄 Troca Automática\n🛡️ Filtro de Pavio\n⚔️ Filosofia Samurai\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -875,19 +954,20 @@ class Bot:
                 if not self.op:
                     try:
                         bloqueados=[a for a in ATIVOS_OTC if not self.pode_enviar(a)]
-                        sinal=self.m.melhor_par(self.iq.velas,bloqueados,self.professor.stats_pares)
+                        sinal=self.m.obter_sinal_dinamico(self.iq.velas,bloqueados)
                         if sinal and time.time()-self.ult>25:
                             self.op=True;self.sinais+=1;self.registrar_envio(sinal['ativo'])
                             he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
-                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal.get('estrategias',0)}/26 | ⏰ {he}")
+                            est=sinal.get('estrategia','N/A')
+                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠 {est} | ⏰ {he}")
                             self.tg.send(self.fmt_sinal(sinal))
                             explicacao=self.professor.explicar_entrada(sinal,self.iq.velas[sinal['ativo']])
                             self.tg.send(explicacao)
                             self.ult=time.time()
                             asyncio.create_task(self.corrigir(sinal))
                     except:pass
-                # Relatório do catalogador a cada 15 operações
-                if self.p.w+self.p.l+self.p.g1>0 and (self.p.w+self.p.l+self.p.g1)%15==0 and self.m.catalogador.total_operacoes!=self.m.catalogador.ultimo_relatorio:
+                # Relatório a cada 10 operações
+                if self.m.catalogador.total_operacoes>0 and self.m.catalogador.total_operacoes%10==0 and self.m.catalogador.total_operacoes!=self.m.catalogador.ultimo_relatorio:
                     relatorio=self.m.catalogador.get_relatorio()
                     if relatorio:
                         self.tg.send(relatorio)
@@ -900,8 +980,10 @@ class Bot:
                         lucro=round(w*1.6+g1*0.4-l*5,2)
                         bloqueados=[a for a in ATIVOS_OTC if not self.pode_enviar(a)]
                         info_bloqueio=f" | 🔒 {','.join(bloqueados)}" if bloqueados else ""
+                        comb=self.m.catalogador.combinacao_atual
+                        info_comb=f" | 🧠 {comb['estrategia']} em {comb['par']}" if comb else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_bloqueio}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_bloqueio}{info_comb}")
                         print(f"{C.GOLD}│{C.E} ⚔️ {get_filosofia()}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:pass
