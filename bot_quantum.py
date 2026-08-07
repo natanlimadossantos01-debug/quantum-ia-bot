@@ -2,9 +2,9 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   🧠 Catalogador Inteligente Dinâmico       ║
-║   🎯 Melhor Estratégia + Par do Momento     ║
-║   🔄 Troca Automática | 🛡️ Filtro Pavio    ║
+║   🧠 Catalogador Inteligente | Máxima Assertividade ║
+║   🎯 65% Taxa Mínima | 🔥 65% Confiança    ║
+║   🔄 Troca Rápida | 🛡️ Filtro Pavio        ║
 ║   👨‍🏫 Trader Professor | ⚔️ Samurai          ║
 ║   📊 26 Estratégias | 4 Pares OTC          ║
 ║   ⚡ SEM Bloqueio | ☁️ Cloud Ready          ║
@@ -49,8 +49,8 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   🧠 Catalogador Inteligente | 4 Pares      ║")
-    print(f"║   🎯 Melhor Combinação | ⚡ SEM Bloqueio    ║")
+    print(f"║   🧠 Máxima Assertividade | 🔥 65%+        ║")
+    print(f"║   🎯 65% Taxa Mínima | 🛡️ Filtro Pavio    ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -117,16 +117,16 @@ class Telegram:
         except:pass
 
 # ═══════════════════════════════════════════
-# 🧠 CATALOGADOR INTELIGENTE
+# 🧠 CATALOGADOR INTELIGENTE (OTIMIZADO)
 # ═══════════════════════════════════════════
 class CatalogadorInteligente:
     def __init__(self):
         self.performance = {}
         self.combinacao_atual = None
         self.sinais_na_combinacao = 0
-        self.max_sinais_por_combinacao = 2
-        self.taxa_minima = 55
-        self.min_operacoes = 3
+        self.max_sinais_por_combinacao = 1
+        self.taxa_minima = 65
+        self.min_operacoes = 5
         self.total_operacoes = 0
         self.ultimo_relatorio = 0
         
@@ -146,7 +146,7 @@ class CatalogadorInteligente:
             return round((p['wins']/p['total'])*100, 1) if p['total'] > 0 else 0
         return 0
     
-    def get_melhores(self, min_ops=3):
+    def get_melhores(self, min_ops=5):
         melhores = []
         for chave, p in self.performance.items():
             if p['total'] >= min_ops:
@@ -173,7 +173,7 @@ class CatalogadorInteligente:
         taxa_atual = self.get_taxa(self.combinacao_atual['estrategia'], self.combinacao_atual['par'])
         if taxa_atual < self.taxa_minima: return True
         melhor = self.escolher_melhor()
-        if melhor and melhor['taxa'] > taxa_atual + 10: return True
+        if melhor and melhor['taxa'] > taxa_atual + 5: return True
         return False
     
     def atualizar_combinacao(self):
@@ -576,9 +576,13 @@ class QuantumIA:
         par = combinacao['par']; estrategia_nome = combinacao['estrategia']
         if par in velas_dict and par not in bloqueados and len(velas_dict[par]) >= 30:
             d, c = self.analisar_estrategia(estrategia_nome, velas_dict[par])
-            if d and self._pavio_ok(velas_dict[par], d):
+            # 🔥 Só aceita confiança >= 65%
+            if d and c >= 65 and self._pavio_ok(velas_dict[par], d):
                 return {'ativo': par, 'direcao': d, 'confianca': c, 'estrategia': estrategia_nome, 'estrategias': 1, 'detalhes': {estrategia_nome: f"{d} {c:.0f}%"}}
-            elif d: self.sinais_bloqueados_pavio += 1
+            elif d and c < 65:
+                pass  # Confiança baixa, ignora
+            elif d:
+                self.sinais_bloqueados_pavio += 1
         return self._buscar_qualquer_sinal(velas_dict, bloqueados)
     
     def _pavio_ok(self, velas, direcao):
@@ -600,10 +604,11 @@ class QuantumIA:
             for nome_est, est in self.estrategias:
                 try:
                     d, c = est.analisar(velas)
-                    if d and self._pavio_ok(velas, d):
+                    # 🔥 NOVO: Só aceita confiança >= 65%
+                    if d and c >= 65 and self._pavio_ok(velas, d):
                         score = c
                         taxa = self.catalogador.get_taxa(nome_est, nome_par)
-                        if taxa > 60: score += taxa * 0.3
+                        if taxa > 60: score += taxa * 0.5  # Mais peso
                         if score > melhor_score:
                             melhor_score = score
                             melhor = {'ativo': nome_par, 'direcao': d, 'confianca': c, 'estrategia': nome_est, 'estrategias': 1, 'detalhes': {nome_est: f"{d} {c:.0f}%"}}
@@ -684,13 +689,13 @@ class TraderProfessor:
         tendencia=self.tendencias.get(ativo,'NEUTRA')
         if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência")
         elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência")
-        if conf<58:causas.append("📊 Confiança baixa")
+        if conf<65:causas.append("📊 Confiança baixa (<65%)")
         if not causas:causas.append("🎲 Movimento aleatório")
         self.losses.append({'ativo':ativo,'direcao':direcao,'confianca':conf,'causas':causas,'hora':datetime.now(FUSO_BR).hour})
         licao="Seguir o plano"
         if 'pavio' in str(causas).lower():licao="Verificar pavios antes de entrar"
         elif 'tendência' in str(causas).lower():licao="Não operar contra tendência"
-        elif 'confiança' in str(causas).lower():licao="Esperar confiança mais alta"
+        elif 'confiança' in str(causas).lower():licao="Esperar confiança mais alta (65%+)"
         filosofia=get_filosofia()
         return f"""🧠 *ANÁLISE DO LOSS*
 
@@ -702,7 +707,7 @@ class TraderProfessor:
     def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
 
 # ═══════════════════════════════════════════
-# IQ API (ORIGINAL - SEM VERIFICAÇÃO)
+# IQ API
 # ═══════════════════════════════════════════
 class IQAPI:
     def __init__(self,e,s,a):self.e=e;self.s=s;self.a=a;self.api=None;self.velas={nome:deque(maxlen=100) for nome in a};self.ok=False;self.erros=0
@@ -741,7 +746,7 @@ class IQAPI:
             except:pass
 
 # ═══════════════════════════════════════════
-# BOT (ORIGINAL - 200+ SINAIS)
+# BOT
 # ═══════════════════════════════════════════
 class Bot:
     def __init__(self):
@@ -870,14 +875,14 @@ class Bot:
 
     async def run(self):
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA - Catalogador Inteligente...\n")
+        print(f"\n  ⚛️ Iniciando Quantum IA - Máxima Assertividade...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🧠 Catalogador Dinâmico | 🛡️ Filtro Pavio | ⚡ SEM Bloqueio | ⚔️ Samurai | 4 Pares\n")
+        print(f"  🔥 65% Taxa Mínima | 🔥 65% Confiança | 🛡️ Filtro Pavio | ⚡ SEM Bloqueio\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA | 🧠 Catalogador Inteligente | 🎯 Melhor Estratégia + Par | 4 Pares | ⚡ SEM Bloqueio\n")
-        self.tg.send(f"🧠 *QUANTUM IA - CATALOGADOR INTELIGENTE*\n👨‍🏫 Trader Professor\n📊 26 Estratégias | 4 Pares\n🎯 Melhor Combinação do Momento\n🔄 Troca Automática\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio de Par\n⚔️ Filosofia Samurai\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        print(f"\n  ✅ QUANTUM IA | 🔥 Máxima Assertividade | 🎯 Melhor Combinação | 4 Pares\n")
+        self.tg.send(f"🔥 *QUANTUM IA - MÁXIMA ASSERTIVIDADE*\n👨‍🏫 Trader Professor\n📊 26 Estratégias | 4 Pares\n🎯 Taxa Mínima: 65%\n🔥 Confiança Mínima: 65%\n🔄 Troca Rápida\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -917,7 +922,7 @@ class Bot:
                         info_comb=f" | 🧠 {comb['estrategia']} em {comb['par']}" if comb else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
                         print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_comb}")
-                        print(f"{C.GOLD}│{C.E} ⚔️ {get_filosofia()}")
+                        print(f"{C.GOLD}│{C.E} 🔥 65%+ | ⚔️ {get_filosofia()}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:pass
                 await asyncio.sleep(3)
