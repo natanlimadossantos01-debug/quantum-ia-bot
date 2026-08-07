@@ -625,4 +625,315 @@ class TraderProfessor:
             self.stats_pares[ativo]['total']+=1
             if resultado=='win':self.stats_pares[ativo]['wins']+=1
             else:self.stats_pares[ativo]['losses']+=1
-            t=self.stats_pares[ativo]['total'];w=self
+            t=self.stats_pares[ativo]['total'];w=self.stats_pares[ativo]['wins']
+            self.stats_pares[ativo]['taxa']=round((w/t)*100,1) if t>0 else 0
+    
+    def atualizar_dados(self,velas_dict):
+        for nome,velas in velas_dict.items():
+            if len(velas)>=21:
+                closes=[v['close'] for v in list(velas)[-21:]]
+                ema9=np.mean(closes[-9:]);ema21=np.mean(closes[-21:])
+                if ema9>ema21*1.0002:self.tendencias[nome]="ALTA 📈"
+                elif ema9<ema21*0.9998:self.tendencias[nome]="BAIXA 📉"
+                else:self.tendencias[nome]="NEUTRA ➡️"
+    
+    def ler_grafico(self,velas,direcao):
+        if len(velas)<5:return"Poucas velas",[],True
+        obs=[];v=velas[-1];v1=velas[-2]
+        corpo=abs(v['close']-v['open']);range_total=v['high']-v['low']
+        pavio_sup=v['high']-max(v['close'],v['open']);pavio_inf=min(v['close'],v['open'])-v['low']
+        pavio_ok=True
+        if direcao=='CALL':
+            if pavio_inf>corpo*2 and pavio_sup<corpo*0.3:obs.append("🔨 Martelo")
+            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']>v1['open']:obs.append("📈 Engolfo alta")
+            if pavio_sup>corpo*0.6:obs.append("⚠️ Pavio superior");pavio_ok=False
+        else:
+            if pavio_sup>corpo*2 and pavio_inf<corpo*0.3:obs.append("💫 Estrela cadente")
+            elif corpo>abs(v1['close']-v1['open'])*1.5 and v['close']<v1['open']:obs.append("📉 Engolfo baixa")
+            if pavio_inf>corpo*0.6:obs.append("⚠️ Pavio inferior");pavio_ok=False
+        if corpo>range_total*0.6:obs.append("💪 Vela forte")
+        precos=[x['close'] for x in velas]
+        altas=sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
+        if altas>=4:obs.append("📈 Tendência alta")
+        elif altas<=1:obs.append("📉 Tendência baixa")
+        else:obs.append("↔️ Sem direção")
+        if not obs:obs.append("✅ Setup neutro")
+        return" | ".join(obs),obs,pavio_ok
+    
+    def explicar_entrada(self,sinal,velas):
+        ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
+        est=sinal.get('estrategia','N/A')
+        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
+        tendencia=self.tendencias.get(ativo,'NEUTRA')
+        filosofia=get_filosofia()
+        return f"""👨‍🏫 *ANÁLISE DO TRADER*
+
+📊 *Mercado:* {tendencia}
+👁️ *Gráfico:* {leitura}
+🧠 *Estratégia:* {est}
+🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança
+⚔️ _{filosofia}_"""
+    
+    def explicar_loss(self,sinal,velas):
+        ativo=sinal['ativo'];direcao=sinal['direcao'];conf=sinal.get('confianca',0)
+        leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
+        causas=[];v=velas[-1];corpo=abs(v['close']-v['open'])
+        if corpo>0:
+            if direcao=='CALL' and(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
+            elif direcao=='PUT' and(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
+        tendencia=self.tendencias.get(ativo,'NEUTRA')
+        if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência")
+        elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência")
+        if conf<58:causas.append("📊 Confiança baixa")
+        if not causas:causas.append("🎲 Movimento aleatório")
+        self.losses.append({'ativo':ativo,'direcao':direcao,'confianca':conf,'causas':causas,'hora':datetime.now(FUSO_BR).hour})
+        licao="Seguir o plano"
+        if 'pavio' in str(causas).lower():licao="Verificar pavios antes de entrar"
+        elif 'tendência' in str(causas).lower():licao="Não operar contra tendência"
+        elif 'confiança' in str(causas).lower():licao="Esperar confiança mais alta"
+        filosofia=get_filosofia()
+        return f"""🧠 *ANÁLISE DO LOSS*
+
+🔴 {ativo}-OTC {direcao} | {conf:.0f}%
+🚫 *Causas:* {', '.join(causas)}
+📚 *Lição:* {licao}
+⚔️ _{filosofia}_"""
+    
+    def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
+
+# ═══════════════════════════════════════════
+# IQ API
+# ═══════════════════════════════════════════
+class IQAPI:
+    def __init__(self,e,s,a):self.e=e;self.s=s;self.a=a;self.api=None;self.velas={nome:deque(maxlen=100) for nome in a};self.ok=False;self.erros=0
+    def conectar(self):
+        for t in range(5):
+            try:
+                if self.api:
+                    try:self.api.close()
+                    except:pass
+                    time.sleep(2)
+                self.api=IQ_Option(self.e,self.s);ok,_=self.api.connect()
+                if ok:self.ok=True;self.erros=0;return True
+                time.sleep(5*(t+1))
+            except:time.sleep(5*(t+1))
+        self.ok=False;return False
+    def obter(self,ativo_id,qtd=80):
+        for retry in range(3):
+            if not self.ok and not self.conectar():return 0
+            try:
+                c=self.api.get_candles(ativo_id,60,qtd,time.time())
+                if c and len(c)>0:
+                    nome=[k for k,v in self.a.items() if v==ativo_id][0];self.velas[nome].clear()
+                    for x in c[-qtd:]:
+                        if isinstance(x,dict):
+                            try:self.velas[nome].append({'time':datetime.fromtimestamp(x.get('from',0),FUSO_BR),'open':float(x['open']),'high':float(x['max']),'low':float(x['min']),'close':float(x['close']),'volume':int(x.get('volume',0))})
+                            except:pass
+                    return len(c)
+            except:
+                self.ok=False
+                if retry<2:time.sleep(3);continue
+        return 0
+    def atualizar(self):
+        if not self.ok:self.conectar()
+        for n,i in self.a.items():
+            try:self.obter(i)
+            except:pass
+
+# ═══════════════════════════════════════════
+# BOT (SEM BLOQUEIO DE 7 MINUTOS)
+# ═══════════════════════════════════════════
+class Bot:
+    def __init__(self):
+        self.tg=Telegram(TOKEN,CHAT);self.m=QuantumIA();self.p=Placar();self.iq=IQAPI(EMAIL,SENHA,ATIVOS_OTC)
+        self.professor=TraderProfessor()
+        self.op=False;self.g=0;self.ult=0;self.sinais=0
+        self.ultimo_dia=datetime.now(FUSO_BR).day;self.placar_enviado=False
+
+    def _barra(self,pct):p=int(pct/10);return '█'*p+'░'*(10-p)
+
+    def fechar_dia(self):
+        agora=datetime.now(FUSO_BR);data=agora.strftime('%d/%m/%Y')
+        dias={'Monday':'Segunda','Tuesday':'Terça','Wednesday':'Quarta','Thursday':'Quinta','Friday':'Sexta','Saturday':'Sábado','Sunday':'Domingo'}
+        dia=dias.get(agora.strftime('%A'),'')
+        w=self.p.w;g1=self.p.g1;l=self.p.l
+        total_profit=w+g1;total_trades=total_profit+l
+        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
+        lucro=round(w*1.6+g1*0.4-l*5,2)
+        lista_ops=""
+        if self.p.ops:
+            for op in self.p.ops[-50:]:lista_ops+=op+"\n"
+        relatorio=self.m.catalogador.get_relatorio()
+        msg=f"""📊 *PLACAR DIÁRIO FINALIZADO*
+
+🗓️ *{data} ({dia})*
+⏰ {agora.strftime('%H:%M')}
+
+┌──────────────────────────┐
+│ ⚛️ QUANTUM IA M1        │
+│ 🟢 Wins Diretos: {w}      │
+│ 🟡 Gale 1: {g1}            │
+│ 🔴 Losses: {l}            │
+│ 📨 Total Sinais: {total_trades} │
+│ 🎯 Assertividade: {tx}%   │
+│ [{self._barra(tx)}]      │
+│ 💰 Lucro: +R${lucro}      │
+│ 🛡️ Pavios bloqueados: {self.m.sinais_bloqueados_pavio} │
+└──────────────────────────┘
+
+📋 *Operações do Dia:*
+{lista_ops if lista_ops else 'Nenhuma operação'}
+
+⚔️ _{get_filosofia()}_
+
+🔄 *Placar zerado!*"""
+        self.tg.send(msg)
+        if relatorio:self.tg.send(relatorio)
+        print(f"\n{C.GOLD}╔══════════════════════════════╗{C.E}")
+        print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
+        print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
+        print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
+        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_pavio=0
+        print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
+
+    def fmt_sinal(self,s):
+        agora=datetime.now(FUSO_BR)
+        he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
+        e="🟢" if s['direcao']=='CALL' else "🔴"
+        est=s.get('estrategia','N/A')
+        return f"""⚛️ SINAL QUANTUM IA ⚛️
+
+⏰ Horário: {he}
+💰 Ativo: {s['ativo']}-OTC
+📈 Direção: {s['direcao']} {e}
+⌛️ Expiração: M1
+📊 Confiança: {s['confianca']:.0f}%
+🧠 Estratégia: {est}
+
+⚠️ Entrar somente no horário marcado.
+🔄 1 recuperação (Gale 1)!"""
+
+    def fmt_corr(self,r,s):
+        total_profit=self.p.w+self.p.g1
+        total_trades=total_profit+self.p.l
+        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
+        return f"""{r}
+📊 {s['ativo']}-OTC | {s['direcao']} {'🟢' if s['direcao']=='CALL' else '🔴'}
+📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L
+🎯 Assertividade: {tx}%"""
+
+    def bateu(self,d,p,v):return v['high']>p if d=='CALL' else v['low']<p
+
+    async def esperar(self,seg=60):
+        try:
+            agora=datetime.now(FUSO_BR)
+            alvo=agora.replace(second=0,microsecond=0)+timedelta(minutes=1)+timedelta(seconds=seg)
+            e=max(0,(alvo-agora).total_seconds())
+            if e>0:await asyncio.sleep(e)
+            self.iq.atualizar()
+        except:pass
+
+    async def corrigir(self,sinal):
+        at=sinal['ativo'];d=sinal['direcao'];conf=sinal.get('confianca',0)
+        estrategia_nome=sinal.get('estrategia','Desconhecida')
+        try:
+            self.iq.atualizar()
+            await self.esperar(8);v=self.iq.velas[at]
+            if len(v)<2:self.op=False;return
+            pc=v[-1]['open'];hora=v[-1]['time'].strftime('%H:%M')
+            print(f"\n  ⚛️ {at}-OTC {d} | {estrategia_nome} | OPEN:{pc:.5f} | Vela:{hora}")
+            await self.esperar(5);v=self.iq.velas[at]
+            if len(v)>0 and self.bateu(d,pc,v[-1]):
+                r=self.p.win(0);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN")
+                self.tg.send(self.fmt_corr(r,sinal))
+                self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
+                self.m.catalogador.registrar(estrategia_nome,at,True)
+                self.op=False;return
+            print(f"  ❌ Principal")
+            self.g=1;v=self.iq.velas[at];pg=v[-1]['open'] if len(v)>0 else pc
+            print(f"  🔄 GALE 1 | OPEN:{pg:.5f}");await self.esperar(5);v=self.iq.velas[at]
+            if len(v)>0 and self.bateu(d,pg,v[-1]):
+                r=self.p.win(1);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN GALE 1",is_gale=True)
+                self.tg.send(self.fmt_corr(r,sinal))
+                self.professor.registrar('win');self.professor.atualizar_stats(at,'win')
+                self.m.catalogador.registrar(estrategia_nome,at,True)
+                self.op=False;return
+            print(f"  ❌ GALE 1");r=self.p.loss();print(f"  🔴 {r}");self.p.registrar(at,d,conf,"LOSS")
+            self.tg.send(self.fmt_corr(r,sinal))
+            self.professor.registrar('loss');self.professor.atualizar_stats(at,'loss')
+            self.m.catalogador.registrar(estrategia_nome,at,False)
+            explicacao=self.professor.explicar_loss(sinal,self.iq.velas[at])
+            self.tg.send(explicacao)
+            print(f"  🧠 Loss explicado!")
+            self.op=False
+        except Exception as e:print(f"  ❌ {e}");self.op=False
+
+    async def run(self):
+        banner()
+        print(f"\n  ⚛️ Iniciando Quantum IA - Catalogador Inteligente...\n")
+        print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
+        print(f"  🧠 Catalogador Dinâmico | 🛡️ Filtro Pavio | ⚡ SEM Bloqueio | ⚔️ Samurai | 4 Pares\n")
+        if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
+        self.iq.atualizar()
+        self.ultimo_dia=datetime.now(FUSO_BR).day
+        print(f"\n  ✅ QUANTUM IA | 🧠 Catalogador Inteligente | 🎯 Melhor Estratégia + Par | 4 Pares | ⚡ SEM Bloqueio\n")
+        self.tg.send(f"🧠 *QUANTUM IA - CATALOGADOR INTELIGENTE*\n👨‍🏫 Trader Professor\n📊 26 Estratégias | 4 Pares\n🎯 Melhor Combinação do Momento\n🔄 Troca Automática\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio de Par\n⚔️ Filosofia Samurai\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+
+        while True:
+            try:
+                agora=datetime.now(FUSO_BR)
+                if agora.hour==23 and agora.minute==59 and not self.placar_enviado:
+                    self.fechar_dia();self.placar_enviado=True
+                if agora.day!=self.ultimo_dia:self.ultimo_dia=agora.day;self.placar_enviado=False
+                if agora.second in[0,30]:
+                    try:self.iq.atualizar();self.professor.atualizar_dados(self.iq.velas)
+                    except:self.iq.ok=False
+                if not self.op:
+                    try:
+                        sinal=self.m.obter_sinal_dinamico(self.iq.velas,[])  # SEM bloqueados
+                        if sinal and time.time()-self.ult>25:
+                            self.op=True;self.sinais+=1
+                            he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
+                            est=sinal.get('estrategia','N/A')
+                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠 {est} | ⏰ {he}")
+                            self.tg.send(self.fmt_sinal(sinal))
+                            explicacao=self.professor.explicar_entrada(sinal,self.iq.velas[sinal['ativo']])
+                            self.tg.send(explicacao)
+                            self.ult=time.time()
+                            asyncio.create_task(self.corrigir(sinal))
+                    except:pass
+                if self.m.catalogador.total_operacoes>0 and self.m.catalogador.total_operacoes%10==0 and self.m.catalogador.total_operacoes!=self.m.catalogador.ultimo_relatorio:
+                    relatorio=self.m.catalogador.get_relatorio()
+                    if relatorio:
+                        self.tg.send(relatorio)
+                        self.m.catalogador.ultimo_relatorio=self.m.catalogador.total_operacoes
+                if agora.second in[0,30]:
+                    try:
+                        w,l,g1=self.p.w,self.p.l,self.p.g1
+                        total_profit=w+g1;total_trades=total_profit+l
+                        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
+                        lucro=round(w*1.6+g1*0.4-l*5,2)
+                        comb=self.m.catalogador.combinacao_atual
+                        info_comb=f" | 🧠 {comb['estrategia']} em {comb['par']}" if comb else ""
+                        print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_comb}")
+                        print(f"{C.GOLD}│{C.E} ⚔️ {get_filosofia()}")
+                        print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
+                    except:pass
+                await asyncio.sleep(3)
+            except KeyboardInterrupt:
+                clear();w,l,g1=self.p.w,self.p.l,self.p.g1
+                total_profit=w+g1;total_trades=total_profit+l
+                tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
+                lucro=round(w*1.6+g1*0.4-l*5,2)
+                print(f"\n👋 🟢{w}W 🟡{g1}G1 🔴{l}L | 🎯{tx}% | 💰+R${lucro}\n")
+                self.tg.send(f"⚠️ *Desligado*\n🟢{w}W 🟡{g1}G1 🔴{l}L\n🎯{tx}%\n💰+R${lucro}")
+                if self.iq.api:
+                    try:self.iq.api.close()
+                    except:pass
+                break
+            except Exception as e:
+                print(f"  {C.R}❌ {str(e)[:40]}{C.E}");self.iq.ok=False;await asyncio.sleep(5)
+
+if __name__=="__main__":
+    asyncio.run(Bot().run())
