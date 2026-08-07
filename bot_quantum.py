@@ -4,11 +4,11 @@
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
 ║   🧠 Catalogador Inteligente Dinâmico       ║
 ║   🎯 Melhor Estratégia + Par do Momento     ║
-║   👁️ Verifica Pares Abertos em Tempo Real   ║
+║   👁️ Verifica Pares Abertos (4 pares)       ║
 ║   🔄 Troca Automática | 🛡️ Filtro Pavio    ║
 ║   👨‍🏫 Trader Professor | ⚔️ Samurai          ║
-║   📊 26 Estratégias | 4 Pares OTC          ║
-║   ⚡ SEM Bloqueio | ☁️ Cloud Ready          ║
+║   📊 26 Estratégias | ⚡ SEM Bloqueio       ║
+║   ☁️ Cloud Ready | 🕐 Horário Brasil        ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -50,7 +50,7 @@ def banner():
     clear()
     print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
-    print(f"║   🧠 Catalogador Inteligente | 👁️ Pares    ║")
+    print(f"║   🧠 Catalogador Inteligente | 👁️ 4 Pares  ║")
     print(f"║   🎯 Melhor Combinação | ⚡ SEM Bloqueio   ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
@@ -581,55 +581,41 @@ class QuantumIA:
 
     def obter_sinal_dinamico(self, velas_dict, pares_abertos):
         """👁️ Obtém sinal apenas de pares ABERTOS"""
-        
-        # Filtra velas_dict para ter apenas pares abertos
         velas_abertas = {p: v for p, v in velas_dict.items() if p in pares_abertos}
         
         trocou, combinacao = self.catalogador.atualizar_combinacao()
         if trocou and combinacao:
             print(f"  🧠 Nova combinação: {combinacao['estrategia']} em {combinacao['par']} ({combinacao['taxa']}%)")
         
-        # Se a combinação atual usa um par FECHADO, busca outra
         if combinacao and combinacao['par'] in pares_abertos:
-            par = combinacao['par']
-            estrategia_nome = combinacao['estrategia']
+            par = combinacao['par']; estrategia_nome = combinacao['estrategia']
             if par in velas_abertas and len(velas_abertas[par]) >= 30:
                 d, c = self.analisar_estrategia(estrategia_nome, velas_abertas[par])
                 if d and self._pavio_ok(velas_abertas[par], d):
                     return {'ativo': par, 'direcao': d, 'confianca': c, 'estrategia': estrategia_nome}
-                elif d:
-                    self.sinais_bloqueados_pavio += 1
+                elif d: self.sinais_bloqueados_pavio += 1
         
-        # Busca em qualquer par ABERTO
         return self._buscar_sinal_aberto(velas_abertas)
     
     def _buscar_sinal_aberto(self, velas_abertas):
-        """Busca sinal apenas em pares ABERTOS"""
-        melhor = None
-        melhor_score = 0
-        
+        melhor = None; melhor_score = 0
         for nome_par, velas in velas_abertas.items():
-            if len(velas) < 30:
-                continue
-            
+            if len(velas) < 30: continue
             for nome_est, est in self.estrategias:
                 try:
                     d, c = est.analisar(velas)
                     if d and self._pavio_ok(velas, d):
                         score = c
                         taxa = self.catalogador.get_taxa(nome_est, nome_par)
-                        if taxa > 60:
-                            score += taxa * 0.3
+                        if taxa > 60: score += taxa * 0.3
                         if score > melhor_score:
                             melhor_score = score
                             melhor = {'ativo': nome_par, 'direcao': d, 'confianca': c, 'estrategia': nome_est}
-                except:
-                    pass
-        
+                except: pass
         return melhor
 
 # ═══════════════════════════════════════════
-# 👨‍🏫 TRADER PROFESSOR (SIMPLIFICADO)
+# 👨‍🏫 TRADER PROFESSOR
 # ═══════════════════════════════════════════
 class TraderProfessor:
     def __init__(self):
@@ -720,7 +706,7 @@ class TraderProfessor:
     def registrar(self,resultado):self.historico.append(1 if resultado=='win' else 0)
 
 # ═══════════════════════════════════════════
-# IQ API (COM VERIFICAÇÃO DE PARES ABERTOS)
+# IQ API (COM VERIFICAÇÃO SIMPLES DE PARES)
 # ═══════════════════════════════════════════
 class IQAPI:
     def __init__(self,e,s,a):self.e=e;self.s=s;self.a=a;self.api=None;self.velas={nome:deque(maxlen=100) for nome in a};self.ok=False;self.erros=0;self.pares_abertos=list(a.keys())
@@ -732,32 +718,23 @@ class IQAPI:
                     except:pass
                     time.sleep(2)
                 self.api=IQ_Option(self.e,self.s);ok,_=self.api.connect()
-                if ok:self.ok=True;self.erros=0;self.pares_abertos=self.verificar_pares_abertos();return True
+                if ok:self.ok=True;self.erros=0;self.pares_abertos=list(self.a.keys());return True
                 time.sleep(5*(t+1))
             except:time.sleep(5*(t+1))
         self.ok=False;return False
     
     def verificar_pares_abertos(self):
-        """👁️ Verifica quais pares estão ABERTOS para operar"""
+        """👁️ Verifica quais pares estão ABERTOS tentando comprar 1 centavo"""
         abertos = []
-        try:
-            ativos = self.api.get_all_open_time()
-            if ativos:
-                for nome, ativo_id in self.a.items():
-                    if ativo_id in ativos:
-                        if isinstance(ativos[ativo_id], dict):
-                            if ativos[ativo_id].get('open', False):
-                                abertos.append(nome)
-                            else:
-                                print(f"  🔒 {nome} FECHADO - Ignorado")
-                        else:
-                            abertos.append(nome)
-                    else:
-                        abertos.append(nome)
-            else:
-                abertos = list(self.a.keys())
-        except Exception as e:
-            abertos = list(self.a.keys())
+        for nome, ativo_id in self.a.items():
+            try:
+                status, _ = self.api.buy(0.01, ativo_id, 'call', 1)
+                if status:
+                    abertos.append(nome)
+                else:
+                    print(f"  🔒 {nome} FECHADO - Será ignorado")
+            except:
+                abertos.append(nome)
         
         if not abertos:
             abertos = list(self.a.keys())
@@ -783,8 +760,13 @@ class IQAPI:
     
     def atualizar(self):
         if not self.ok:self.conectar()
-        # 👁️ Verifica pares abertos antes de atualizar
-        self.pares_abertos = self.verificar_pares_abertos()
+        # 👁️ Verifica pares abertos a cada 5 minutos
+        agora = datetime.now(FUSO_BR)
+        if agora.minute % 5 == 0 and agora.second == 0:
+            try:
+                self.pares_abertos = self.verificar_pares_abertos()
+            except:
+                pass
         for n,i in self.a.items():
             try:self.obter(i)
             except:pass
@@ -938,7 +920,6 @@ class Bot:
                     except:self.iq.ok=False
                 if not self.op:
                     try:
-                        # 👁️ Usa apenas pares ABERTOS
                         sinal=self.m.obter_sinal_dinamico(self.iq.velas, self.iq.pares_abertos)
                         if sinal and time.time()-self.ult>25:
                             self.op=True;self.sinais+=1
