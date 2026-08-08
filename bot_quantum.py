@@ -6,7 +6,7 @@
 ║   🎯 65% Taxa Mínima | 🔥 65% Confiança    ║
 ║   🔄 Troca Rápida | 🛡️ Filtro Pavio        ║
 ║   👨‍🏫 Trader Professor | ⚔️ Samurai          ║
-║   📊 26 Estratégias | 4 Pares OTC          ║
+║   📊 5 Estratégias | 4 Pares OTC           ║
 ║   ⚡ SEM Bloqueio | ☁️ Cloud Ready          ║
 ╚══════════════════════════════════════════════╝
 """
@@ -199,121 +199,8 @@ class CatalogadorInteligente:
         return msg
 
 # ═══════════════════════════════════════════
-# 26 ESTRATÉGIAS
+# 5 ESTRATÉGIAS SELECIONADAS
 # ═══════════════════════════════════════════
-class Mortalha:
-    def sma(self,d,p):
-        try:
-            if len(d)>=p:return sum(d[-p:])/p
-            return sum(d)/len(d) if d else 0
-        except:return 0
-    def wma(self,d,p):
-        try:
-            if len(d)<p:return sum(d)/len(d) if d else 0
-            w=np.arange(1,p+1);return np.sum(np.array(d[-p:])*w)/np.sum(w)
-        except:return 0
-    def analisar(self,v):
-        try:
-            if len(v)<30:return None,0
-            c=np.array([x['close'] for x in v]);b1=np.zeros(len(c))
-            for i in range(len(c)):
-                if i>=33:b1[i]=self.sma(c[:i+1],1)-self.sma(c[:i+1],34)
-            b2=np.zeros(len(b1))
-            for i in range(len(b1)):
-                if i>=3:b2[i]=self.wma(b1[:i+1],4)
-            if b1[-1]>b2[-1] and b1[-2]<=b2[-2]:return'CALL',min(45+abs(b1[-1]-b2[-1])*10000,90)
-            if b1[-1]<b2[-1] and b1[-2]>=b2[-2]:return'PUT',min(45+abs(b1[-1]-b2[-1])*10000,90)
-            return None,0
-        except:return None,0
-
-class Formiga:
-    def ema(self,p,pe):
-        try:
-            if len(p)<pe:return sum(p)/len(p) if p else 0
-            return np.mean(p[-pe:])
-        except:return 0
-    def analisar(self,v):
-        try:
-            if len(v)<15:return None,0
-            precos=np.array([x['close'] for x in v])
-            ema5=self.ema(precos,5);ema10=self.ema(precos,10)
-            dif=((ema5-ema10)/ema10)*100 if ema10>0 else 0
-            sc=0;sp=0
-            if dif>0.02:sc+=3
-            elif dif>0.005:sc+=1
-            elif dif<-0.02:sp+=3
-            elif dif<-0.005:sp+=1
-            if sc>=2 and sc>sp:return'CALL',min(50+sc*4,85)
-            if sp>=2 and sp>sc:return'PUT',min(50+sp*4,85)
-            return None,0
-        except:return None,0
-
-class Fortaleza:
-    def rsi(self,p,pe=7):
-        try:
-            if len(p)<pe+1:return 50
-            d=np.diff(list(p[-pe-1:]));g=np.where(d>0,d,0);l=np.where(d<0,-d,0)
-            mg=np.mean(g) if len(g)>0 else 0;mp=np.mean(l) if len(l)>0 else 0
-            if mp==0:return 100
-            return 100-(100/(1+mg/mp))
-        except:return 50
-    def analisar(self,v):
-        try:
-            if len(v)<18:return None,0
-            precos=np.array([x['close'] for x in v])
-            rsi_val=self.rsi(precos)
-            m=np.mean(precos[-10:]) if len(precos)>=10 else np.mean(precos)
-            s=np.std(precos[-10:]) if len(precos)>=10 else 0
-            bs=m+2*s;bi=m-2*s
-            sc=0;sp=0
-            if rsi_val<30:sc+=3
-            elif rsi_val<40:sc+=2
-            if rsi_val>70:sp+=3
-            elif rsi_val>60:sp+=2
-            if precos[-1]<=bi*1.0004:sc+=3
-            if precos[-1]>=bs*0.9996:sp+=3
-            if sc>=4 and sc>sp:return'CALL',min(60+sc*3,90)
-            if sp>=4 and sp>sc:return'PUT',min(60+sp*3,90)
-            return None,0
-        except:return None,0
-
-class RaioNegro:
-    def analisar(self,v):
-        try:
-            if len(v)<12:return None,0
-            precos=np.array([x['close'] for x in v])
-            ema5=np.mean(precos[-5:]) if len(precos)>=5 else precos[-1]
-            ema13=np.mean(precos[-13:]) if len(precos)>=13 else ema5
-            macd=ema5-ema13;sinal=macd*0.5
-            mom=precos[-1]-precos[-3] if len(precos)>=3 else 0
-            sc=0;sp=0
-            if macd>sinal and macd>0:sc+=3
-            elif macd>sinal:sc+=1
-            elif macd<sinal and macd<0:sp+=3
-            elif macd<sinal:sp+=1
-            if mom>0.00003:sc+=3
-            elif mom>0:sc+=1
-            elif mom<-0.00003:sp+=3
-            elif mom<0:sp+=1
-            if sc>=2 and sc>sp:return'CALL',min(48+sc*4,85)
-            if sp>=2 and sp>sc:return'PUT',min(48+sp*4,85)
-            return None,0
-        except:return None,0
-
-class Tsunami:
-    def analisar(self,v):
-        try:
-            if len(v)<12:return None,0
-            precos=np.array([x['close'] for x in v])
-            altas=sum(1 for i in range(-min(5,len(v)-1),0) if precos[i]>precos[i-1])
-            sc=0;sp=0
-            if altas>=3:sc+=3
-            elif altas<=2:sp+=3
-            if sc>=2 and sc>sp:return'CALL',min(50+sc*3,85)
-            if sp>=2 and sp>sc:return'PUT',min(50+sp*3,85)
-            return None,0
-        except:return None,0
-
 class FundoTopo:
     def analisar(self,v):
         try:
@@ -325,14 +212,16 @@ class FundoTopo:
             return None,0
         except:return None,0
 
-class Sequencia:
+class Estrategia520:
     def analisar(self,v):
         try:
-            if len(v)<6:return None,0
+            if len(v)<25:return None,0
             precos=[x['close'] for x in v]
-            altas=sum(1 for i in range(-3,0) if precos[i]>precos[i-1])
-            if altas==3:return'PUT',78
-            if altas==0:return'CALL',78
+            mm5=np.mean(precos[-5:])
+            media20=np.mean(precos[-20:]);std20=np.std(precos[-20:])
+            bs=media20+2*std20;bi=media20-2*std20;atual=precos[-1]
+            if atual>mm5 and atual<=bi*1.002:return'CALL',78
+            if atual<mm5 and atual>=bs*0.998:return'PUT',78
             return None,0
         except:return None,0
 
@@ -359,153 +248,6 @@ class MHI1_Adaptada:
             return None,0
         except:return None,0
 
-class Vituxo_Adaptada:
-    def analisar(self,v):
-        try:
-            if len(v)<8:return None,0
-            velas_ant=v[-8:-5];ups=sum(1 for x in velas_ant if x['close']>x['open']);downs=3-ups
-            if ups>downs:return'CALL',70
-            if downs>ups:return'PUT',70
-            return None,0
-        except:return None,0
-
-class MilhaoMinoria_Adaptada:
-    def analisar(self,v):
-        try:
-            if len(v)<10:return None,0
-            velas_ant=v[-10:-5];ups=sum(1 for x in velas_ant if x['close']>x['open']);downs=5-ups
-            if 0<ups<downs:return'CALL',74
-            if 0<downs<ups:return'PUT',74
-            return None,0
-        except:return None,0
-
-class DAKA_Adaptada:
-    def analisar(self,v):
-        try:
-            if len(v)<9:return None,0
-            vela_ref=v[-6]
-            if vela_ref['close']>vela_ref['open']:return'CALL',68
-            if vela_ref['close']<vela_ref['open']:return'PUT',68
-            return None,0
-        except:return None,0
-
-class MHI2_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<10:return None,0
-            velas_ant=v[-6:-3];ups=sum(1 for x in velas_ant if x['close']>x['open']);downs=3-ups
-            if 0<ups<downs:return'CALL',70
-            if 0<downs<ups:return'PUT',70
-            return None,0
-        except:return None,0
-
-class MHI3_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<10:return None,0
-            velas_ant=v[-6:-3];ups=sum(1 for x in velas_ant if x['close']>x['open']);downs=3-ups
-            if 0<ups<downs:return'CALL',68
-            if 0<downs<ups:return'PUT',68
-            return None,0
-        except:return None,0
-
-class C3_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<7:return None,0
-            vela_ref=v[-6]
-            if vela_ref['close']>vela_ref['open']:return'CALL',65
-            if vela_ref['close']<vela_ref['open']:return'PUT',65
-            return None,0
-        except:return None,0
-
-class MSF_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<7:return None,0
-            vela_ref=v[-6]
-            if vela_ref['close']>vela_ref['open']:return'PUT',65
-            if vela_ref['close']<vela_ref['open']:return'CALL',65
-            return None,0
-        except:return None,0
-
-class MilhaoMaioria_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<10:return None,0
-            velas_ant=v[-10:-5];ups=sum(1 for x in velas_ant if x['close']>x['open']);downs=5-ups
-            if ups>downs:return'CALL',72
-            if downs>ups:return'PUT',72
-            return None,0
-        except:return None,0
-
-class TresVizinhos_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<5:return None,0
-            vela_ref=v[-2]
-            if vela_ref['close']>vela_ref['open']:return'CALL',66
-            if vela_ref['close']<vela_ref['open']:return'PUT',66
-            return None,0
-        except:return None,0
-
-class Estrategia23_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<5:return None,0
-            vela_ref=v[-3]
-            if vela_ref['close']>vela_ref['open']:return'CALL',64
-            if vela_ref['close']<vela_ref['open']:return'PUT',64
-            return None,0
-        except:return None,0
-
-class R7_Quadrante:
-    def analisar(self,v):
-        try:
-            if len(v)<14:return None,0
-            vela_ref=v[-14]
-            if vela_ref['close']>vela_ref['open']:return'CALL',62
-            if vela_ref['close']<vela_ref['open']:return'PUT',62
-            return None,0
-        except:return None,0
-
-class Estrategia520:
-    def analisar(self,v):
-        try:
-            if len(v)<25:return None,0
-            precos=[x['close'] for x in v]
-            mm5=np.mean(precos[-5:])
-            media20=np.mean(precos[-20:]);std20=np.std(precos[-20:])
-            bs=media20+2*std20;bi=media20-2*std20;atual=precos[-1]
-            if atual>mm5 and atual<=bi*1.002:return'CALL',78
-            if atual<mm5 and atual>=bs*0.998:return'PUT',78
-            return None,0
-        except:return None,0
-
-class Chinesa30:
-    def analisar(self,v):
-        try:
-            if len(v)<30:return None,0
-            precos=[x['close'] for x in v];highs=[x['high'] for x in v];lows=[x['low'] for x in v]
-            ma20=np.mean(precos[-20:])
-            suporte=min(lows[-10:]);resistencia=max(highs[-10:])
-            atual=precos[-1]
-            if atual>ma20 and highs[-1]>resistencia:return'CALL',80
-            if atual<ma20 and lows[-1]<suporte:return'PUT',80
-            return None,0
-        except:return None,0
-
-class SegueTendencia:
-    def analisar(self,v):
-        try:
-            if len(v)<8:return None,0
-            precos=[x['close'] for x in v]
-            altas=sum(1 for i in range(-4,0) if precos[i]>precos[i-1])
-            if altas>=3:return'CALL',67
-            if altas<=1:return'PUT',67
-            return None,0
-        except:return None,0
-
 class Rompimento:
     def analisar(self,v):
         try:
@@ -517,45 +259,17 @@ class Rompimento:
             return None,0
         except:return None,0
 
-class ForcaTendencia:
-    def analisar(self,v):
-        try:
-            if len(v)<12:return None,0
-            precos=[x['close'] for x in v]
-            ema5=np.mean(precos[-5:]);ema10=np.mean(precos[-10:])
-            if ema5>ema10*1.0003:return'CALL',70
-            if ema5<ema10*0.9997:return'PUT',70
-            return None,0
-        except:return None,0
-
-class ReversaoRapida:
-    def analisar(self,v):
-        try:
-            if len(v)<4:return None,0
-            v1=v[-1];v2=v[-2]
-            if v2['close']>v2['open'] and v1['close']<v1['open']:return'PUT',68
-            if v2['close']<v2['open'] and v1['close']>v1['open']:return'CALL',68
-            return None,0
-        except:return None,0
-
 # ═══════════════════════════════════════════
 # ⚛️ QUANTUM IA - CATALOGADOR DINÂMICO
 # ═══════════════════════════════════════════
 class QuantumIA:
     def __init__(self):
         self.estrategias=[
-            ('💀 Mortalha',Mortalha()),('🐜 Formiga',Formiga()),('🏰 Fortaleza',Fortaleza()),
-            ('⚡ Raio Negro',RaioNegro()),('🌊 Tsunami',Tsunami()),('🔥 Fundo/Topo',FundoTopo()),
-            ('🔄 Sequência',Sequencia()),('🕯️ Rejeição',Rejeicao()),
-            ('📊 MHI 1',MHI1_Adaptada()),('📊 VITUXO',Vituxo_Adaptada()),
-            ('📊 Milhão Min',MilhaoMinoria_Adaptada()),('📊 DAKA',DAKA_Adaptada()),
-            ('📊 MHI 2',MHI2_Quadrante()),('📊 MHI 3',MHI3_Quadrante()),
-            ('📊 C3',C3_Quadrante()),('📊 MSF',MSF_Quadrante()),
-            ('📊 Milhão Maj',MilhaoMaioria_Quadrante()),('📊 3 Vizinhos',TresVizinhos_Quadrante()),
-            ('📊 23',Estrategia23_Quadrante()),('📊 R7',R7_Quadrante()),
-            ('🔬 5-2-0',Estrategia520()),('🔬 Chinesa 3.0',Chinesa30()),
-            ('📈 Segue Tend',SegueTendencia()),('💥 Rompimento',Rompimento()),
-            ('💪 Força Tend',ForcaTendencia()),('🔄 Reversão',ReversaoRapida())
+            ('🔥 Fundo/Topo',FundoTopo()),
+            ('🔬 5-2-0',Estrategia520()),
+            ('🕯️ Rejeição',Rejeicao()),
+            ('📊 MHI 1',MHI1_Adaptada()),
+            ('💥 Rompimento',Rompimento()),
         ]
         self.catalogador=CatalogadorInteligente()
         self.sinais_bloqueados_pavio=0
@@ -877,12 +591,12 @@ class Bot:
         banner()
         print(f"\n  ⚛️ Iniciando Quantum IA - Máxima Assertividade...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🔥 65% Taxa Mínima | 🔥 65% Confiança | 🛡️ Filtro Pavio | ⚡ SEM Bloqueio\n")
+        print(f"  🔥 65% Taxa Mínima | 🔥 65% Confiança | 🛡️ Filtro Pavio | ⏱️ 5min entre sinais\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
         print(f"\n  ✅ QUANTUM IA | 🔥 Máxima Assertividade | 🎯 Melhor Combinação | 4 Pares\n")
-        self.tg.send(f"🔥 *QUANTUM IA - MÁXIMA ASSERTIVIDADE*\n👨‍🏫 Trader Professor\n📊 26 Estratégias | 4 Pares\n🎯 Taxa Mínima: 65%\n🔥 Confiança Mínima: 65%\n🔄 Troca Rápida\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        self.tg.send(f"🔥 *QUANTUM IA - MÁXIMA ASSERTIVIDADE*\n👨‍🏫 Trader Professor\n📊 5 Estratégias | 4 Pares\n🎯 Taxa Mínima: 65%\n🔥 Confiança Mínima: 65%\n⏱️ Intervalo: 5min\n🔄 Troca Rápida\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -896,7 +610,8 @@ class Bot:
                 if not self.op:
                     try:
                         sinal=self.m.obter_sinal_dinamico(self.iq.velas,[])
-                        if sinal and time.time()-self.ult>25:
+                        # ⏱️ 5 MINUTOS ENTRE SINAIS (300 segundos)
+                        if sinal and time.time()-self.ult>300:
                             self.op=True;self.sinais+=1
                             he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
                             est=sinal.get('estrategia','N/A')
