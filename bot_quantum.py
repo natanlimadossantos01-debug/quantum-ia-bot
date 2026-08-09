@@ -2,12 +2,10 @@
 """
 ╔══════════════════════════════════════════════╗
 ║   ⚛️  Q U A N T U M   I A   M 1           ║
-║   🧠 Catalogador Inteligente | Máxima Assertividade ║
-║   🎯 65% Taxa Mínima | 🔥 65% Confiança    ║
-║   🔄 Troca Rápida | 🛡️ Filtro Pavio        ║
-║   👨‍🏫 Trader Professor | ⚔️ Samurai          ║
-║   📊 5 Estratégias | 4 Pares OTC           ║
-║   ⚡ SEM Bloqueio | ☁️ Cloud Ready          ║
+║   🧠 Máxima Assertividade | 🔥 65%+        ║
+║   🎯 65% Taxa Mínima | 🛡️ Filtro Pavio    ║
+║   📐 Filtro Tendência | 5 Estratégias      ║
+║   ⏱️ 5min entre sinais | ☁️ Cloud Ready    ║
 ╚══════════════════════════════════════════════╝
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -51,6 +49,8 @@ def banner():
     print(f"║   ⚛️  Q U A N T U M   I A   M 1           ║")
     print(f"║   🧠 Máxima Assertividade | 🔥 65%+        ║")
     print(f"║   🎯 65% Taxa Mínima | 🛡️ Filtro Pavio    ║")
+    print(f"║   📐 Filtro Tendência | 5 Estratégias      ║")
+    print(f"║   ⏱️ 5min entre sinais | ☁️ Cloud Ready    ║")
     print(f"╚══════════════════════════════════════════════╝{C.E}")
 
 CONFIG_FILE="config_quantum.json"
@@ -117,7 +117,7 @@ class Telegram:
         except:pass
 
 # ═══════════════════════════════════════════
-# 🧠 CATALOGADOR INTELIGENTE (OTIMIZADO)
+# 🧠 CATALOGADOR INTELIGENTE
 # ═══════════════════════════════════════════
 class CatalogadorInteligente:
     def __init__(self):
@@ -199,7 +199,89 @@ class CatalogadorInteligente:
         return msg
 
 # ═══════════════════════════════════════════
-# 5 ESTRATÉGIAS SELECIONADAS
+# 📊 FILTRO DE TENDÊNCIA AVANÇADO
+# ═══════════════════════════════════════════
+class FiltroTendencia:
+    def __init__(self):
+        self.forca_minima = 0.0002  # Força mínima da tendência (0.02%)
+        
+    def analisar_tendencia(self, velas):
+        """Analisa a tendência usando múltiplos indicadores"""
+        if len(velas) < 20:
+            return "NEUTRA", 0
+        
+        precos = [v['close'] for v in velas]
+        
+        # Médias móveis
+        ema9 = np.mean(precos[-9:])
+        ema21 = np.mean(precos[-21:])
+        
+        # ADX Simples (Força da tendência)
+        high = [v['high'] for v in velas]
+        low = [v['low'] for v in velas]
+        
+        plus_dm = []
+        minus_dm = []
+        tr = []
+        
+        for i in range(1, min(14, len(velas))):
+            up_move = high[-i] - high[-i-1]
+            down_move = low[-i-1] - low[-i]
+            
+            plus_dm.append(up_move if up_move > down_move and up_move > 0 else 0)
+            minus_dm.append(down_move if down_move > up_move and down_move > 0 else 0)
+            
+            true_range = max(
+                high[-i] - low[-i],
+                abs(high[-i] - precos[-i-1]),
+                abs(low[-i] - precos[-i-1])
+            )
+            tr.append(true_range)
+        
+        if len(tr) == 0:
+            return "NEUTRA", 0
+            
+        atr = np.mean(tr) if tr else 0
+        plus_di = (np.mean(plus_dm) / atr * 100) if atr > 0 and plus_dm else 0
+        minus_di = (np.mean(minus_dm) / atr * 100) if atr > 0 and minus_dm else 0
+        
+        dx = abs(plus_di - minus_di) / (plus_di + minus_di) * 100 if (plus_di + minus_di) > 0 else 0
+        
+        # Determinar direção e força
+        if ema9 > ema21 * (1 + self.forca_minima) and plus_di > minus_di:
+            tendencia = "ALTA FORTE 📈" if dx > 25 else "ALTA 📈"
+            forca = dx
+        elif ema9 < ema21 * (1 - self.forca_minima) and minus_di > plus_di:
+            tendencia = "BAIXA FORTE 📉" if dx > 25 else "BAIXA 📉"
+            forca = dx
+        else:
+            tendencia = "NEUTRA ➡️"
+            forca = dx if dx < 20 else 20
+            
+        return tendencia, forca
+    
+    def sinal_alinhado(self, direcao_sinal, tendencia, forca):
+        """Verifica se o sinal está alinhado com a tendência"""
+        if "NEUTRA" in tendencia:
+            return True  # Permite operar em tendência neutra
+            
+        if direcao_sinal == "CALL":
+            if "ALTA" in tendencia:
+                return True  # CALL em tendência de ALTA = ALINHADO ✅
+            elif "BAIXA" in tendencia and forca < 25:
+                return True  # CALL em baixa fraca ainda pode funcionar
+            else:
+                return False  # CALL em baixa forte = CONTRA TENDÊNCIA ❌
+        else:  # PUT
+            if "BAIXA" in tendencia:
+                return True  # PUT em tendência de BAIXA = ALINHADO ✅
+            elif "ALTA" in tendencia and forca < 25:
+                return True  # PUT em alta fraca ainda pode funcionar
+            else:
+                return False  # PUT em alta forte = CONTRA TENDÊNCIA ❌
+
+# ═══════════════════════════════════════════
+# 5 ESTRATÉGIAS
 # ═══════════════════════════════════════════
 class FundoTopo:
     def analisar(self,v):
@@ -272,7 +354,9 @@ class QuantumIA:
             ('💥 Rompimento',Rompimento()),
         ]
         self.catalogador=CatalogadorInteligente()
+        self.filtro_tendencia=FiltroTendencia()
         self.sinais_bloqueados_pavio=0
+        self.sinais_bloqueados_tendencia=0
 
     def analisar_estrategia(self, nome_estrategia, velas):
         for nome, est in self.estrategias:
@@ -290,42 +374,94 @@ class QuantumIA:
         par = combinacao['par']; estrategia_nome = combinacao['estrategia']
         if par in velas_dict and par not in bloqueados and len(velas_dict[par]) >= 30:
             d, c = self.analisar_estrategia(estrategia_nome, velas_dict[par])
-            # 🔥 Só aceita confiança >= 65%
-            if d and c >= 65 and self._pavio_ok(velas_dict[par], d):
-                return {'ativo': par, 'direcao': d, 'confianca': c, 'estrategia': estrategia_nome, 'estrategias': 1, 'detalhes': {estrategia_nome: f"{d} {c:.0f}%"}}
-            elif d and c < 65:
-                pass  # Confiança baixa, ignora
-            elif d:
-                self.sinais_bloqueados_pavio += 1
+            if d and c >= 65:
+                if self._pavio_ok(velas_dict[par], d):
+                    if self._tendencia_ok(velas_dict[par], d, par):
+                        self.catalogador.sinais_na_combinacao += 1
+                        tendencia, forca = self.filtro_tendencia.analisar_tendencia(velas_dict[par])
+                        return {'ativo': par, 'direcao': d, 'confianca': c, 'estrategia': estrategia_nome, 'estrategias': 1, 'detalhes': {estrategia_nome: f"{d} {c:.0f}%"}, 'tendencia': tendencia}
+                    else:
+                        self.sinais_bloqueados_tendencia += 1
+                else:
+                    self.sinais_bloqueados_pavio += 1
         return self._buscar_qualquer_sinal(velas_dict, bloqueados)
     
     def _pavio_ok(self, velas, direcao):
-        if len(velas) < 1: return True
-        va = velas[-1]; corpo = abs(va['close'] - va['open'])
-        if corpo == 0: return True
+        """Filtro de pavio rigoroso: rejeita pavios grandes e velas doji"""
+        if len(velas) < 2:
+            return True
+        va = velas[-1]   # vela recém-fechada
+        vb = velas[-2]   # vela anterior
+        
+        corpo_va = abs(va['close'] - va['open'])
+        if corpo_va == 0:
+            return False  # vela doji = sem corpo
+        
+        # Pavio na vela atual (limiar reduzido para 0.4)
         if direcao == 'CALL':
             pavio_sup = va['high'] - max(va['close'], va['open'])
-            return pavio_sup <= corpo * 0.6
+            if pavio_sup > corpo_va * 0.4:
+                return False
         else:
             pavio_inf = min(va['close'], va['open']) - va['low']
-            return pavio_inf <= corpo * 0.6
+            if pavio_inf > corpo_va * 0.4:
+                return False
+        
+        # Verifica a vela anterior (prevenção)
+        corpo_vb = abs(vb['close'] - vb['open'])
+        if corpo_vb > 0:
+            if direcao == 'CALL':
+                pavio_sup_vb = vb['high'] - max(vb['close'], vb['open'])
+                if pavio_sup_vb > corpo_vb * 0.5:
+                    return False
+            else:
+                pavio_inf_vb = min(vb['close'], vb['open']) - vb['low']
+                if pavio_inf_vb > corpo_vb * 0.5:
+                    return False
+        
+        # Filtro extra: corpo muito pequeno é perigoso
+        range_total = va['high'] - va['low']
+        if range_total > 0 and corpo_va < range_total * 0.3:
+            return False
+        
+        return True
+    
+    def _tendencia_ok(self, velas, direcao, par):
+        """Verifica se o sinal está alinhado com a tendência"""
+        tendencia, forca = self.filtro_tendencia.analisar_tendencia(velas)
+        alinhado = self.filtro_tendencia.sinal_alinhado(direcao, tendencia, forca)
+        
+        if not alinhado:
+            print(f"  🚫 Bloqueado: {direcao} em {par} | Tendência: {tendencia} ({forca:.0f}%)")
+        
+        return alinhado
     
     def _buscar_qualquer_sinal(self, velas_dict, bloqueados):
         melhor = None; melhor_score = 0
         for nome_par, velas in velas_dict.items():
             if nome_par in bloqueados: continue
             if len(velas) < 30: continue
+            
+            tendencia, forca = self.filtro_tendencia.analisar_tendencia(velas)
+            
             for nome_est, est in self.estrategias:
                 try:
                     d, c = est.analisar(velas)
-                    # 🔥 NOVO: Só aceita confiança >= 65%
-                    if d and c >= 65 and self._pavio_ok(velas, d):
-                        score = c
-                        taxa = self.catalogador.get_taxa(nome_est, nome_par)
-                        if taxa > 60: score += taxa * 0.5  # Mais peso
-                        if score > melhor_score:
-                            melhor_score = score
-                            melhor = {'ativo': nome_par, 'direcao': d, 'confianca': c, 'estrategia': nome_est, 'estrategias': 1, 'detalhes': {nome_est: f"{d} {c:.0f}%"}}
+                    if d and c >= 65:
+                        if self._pavio_ok(velas, d):
+                            if self.filtro_tendencia.sinal_alinhado(d, tendencia, forca):
+                                score = c
+                                if ("FORTE" in tendencia and 
+                                    ((d == "CALL" and "ALTA" in tendencia) or 
+                                     (d == "PUT" and "BAIXA" in tendencia))):
+                                    score += 10
+                                taxa = self.catalogador.get_taxa(nome_est, nome_par)
+                                if taxa > 60: score += taxa * 0.5
+                                if score > melhor_score:
+                                    melhor_score = score
+                                    melhor = {'ativo': nome_par, 'direcao': d, 'confianca': c, 'estrategia': nome_est, 'estrategias': 1, 'detalhes': {nome_est: f"{d} {c:.0f}%"}, 'tendencia': tendencia}
+                            else:
+                                self.sinais_bloqueados_tendencia += 1
                 except: pass
         return melhor
 
@@ -338,6 +474,7 @@ class TraderProfessor:
         self.stats_pares={nome:{'wins':0,'losses':0,'total':0,'taxa':0} for nome in ATIVOS_OTC}
         self.tendencias={nome:"NEUTRA" for nome in ATIVOS_OTC}
         self.losses=deque(maxlen=50)
+        self.filtro_tendencia=FiltroTendencia()
     
     def atualizar_stats(self,ativo,resultado):
         if ativo in self.stats_pares:
@@ -349,12 +486,9 @@ class TraderProfessor:
     
     def atualizar_dados(self,velas_dict):
         for nome,velas in velas_dict.items():
-            if len(velas)>=21:
-                closes=[v['close'] for v in list(velas)[-21:]]
-                ema9=np.mean(closes[-9:]);ema21=np.mean(closes[-21:])
-                if ema9>ema21*1.0002:self.tendencias[nome]="ALTA 📈"
-                elif ema9<ema21*0.9998:self.tendencias[nome]="BAIXA 📉"
-                else:self.tendencias[nome]="NEUTRA ➡️"
+            if len(velas)>=20:
+                tendencia, forca = self.filtro_tendencia.analisar_tendencia(velas)
+                self.tendencias[nome] = f"{tendencia} ({forca:.0f}%)"
     
     def ler_grafico(self,velas,direcao):
         if len(velas)<5:return"Poucas velas",[],True
@@ -384,10 +518,18 @@ class TraderProfessor:
         est=sinal.get('estrategia','N/A')
         leitura,obs,pavio_ok=self.ler_grafico(velas,direcao)
         tendencia=self.tendencias.get(ativo,'NEUTRA')
+        
+        alinhamento = "✅ ALINHADO" if (
+            (direcao == "CALL" and "ALTA" in tendencia) or 
+            (direcao == "PUT" and "BAIXA" in tendencia) or
+            "NEUTRA" in tendencia
+        ) else "⚠️ CONTRA TENDÊNCIA"
+        
         filosofia=get_filosofia()
         return f"""👨‍🏫 *ANÁLISE DO TRADER*
 
 📊 *Mercado:* {tendencia}
+📐 *Alinhamento:* {alinhamento}
 👁️ *Gráfico:* {leitura}
 🧠 *Estratégia:* {est}
 🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança
@@ -400,20 +542,26 @@ class TraderProfessor:
         if corpo>0:
             if direcao=='CALL' and(v['high']-max(v['close'],v['open']))/corpo>0.6:causas.append("🕯️ Pavio superior grande")
             elif direcao=='PUT' and(min(v['close'],v['open'])-v['low'])/corpo>0.6:causas.append("🕯️ Pavio inferior grande")
+        
         tendencia=self.tendencias.get(ativo,'NEUTRA')
-        if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência")
-        elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência")
+        if direcao=='CALL' and 'BAIXA' in tendencia:causas.append("📉 Contra tendência de baixa")
+        elif direcao=='PUT' and 'ALTA' in tendencia:causas.append("📈 Contra tendência de alta")
+        
         if conf<65:causas.append("📊 Confiança baixa (<65%)")
         if not causas:causas.append("🎲 Movimento aleatório")
+        
         self.losses.append({'ativo':ativo,'direcao':direcao,'confianca':conf,'causas':causas,'hora':datetime.now(FUSO_BR).hour})
+        
         licao="Seguir o plano"
         if 'pavio' in str(causas).lower():licao="Verificar pavios antes de entrar"
-        elif 'tendência' in str(causas).lower():licao="Não operar contra tendência"
+        elif 'tendência' in str(causas).lower():licao="NÃO operar contra tendência - aguardar alinhamento"
         elif 'confiança' in str(causas).lower():licao="Esperar confiança mais alta (65%+)"
+        
         filosofia=get_filosofia()
         return f"""🧠 *ANÁLISE DO LOSS*
 
 🔴 {ativo}-OTC {direcao} | {conf:.0f}%
+📊 Tendência: {tendencia}
 🚫 *Causas:* {', '.join(causas)}
 📚 *Lição:* {licao}
 ⚔️ _{filosofia}_"""
@@ -498,6 +646,7 @@ class Bot:
 │ [{self._barra(tx)}]      │
 │ 💰 Lucro: +R${lucro}      │
 │ 🛡️ Pavios bloqueados: {self.m.sinais_bloqueados_pavio} │
+│ 📊 Tendências bloqueadas: {self.m.sinais_bloqueados_tendencia} │
 └──────────────────────────┘
 
 📋 *Operações do Dia:*
@@ -512,7 +661,7 @@ class Bot:
         print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
         print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
         print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
-        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_pavio=0
+        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_pavio=0;self.m.sinais_bloqueados_tendencia=0
         print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
 
     def fmt_sinal(self,s):
@@ -520,6 +669,7 @@ class Bot:
         he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
         e="🟢" if s['direcao']=='CALL' else "🔴"
         est=s.get('estrategia','N/A')
+        tendencia=s.get('tendencia','NEUTRA')
         return f"""⚛️ SINAL QUANTUM IA ⚛️
 
 ⏰ Horário: {he}
@@ -528,6 +678,7 @@ class Bot:
 ⌛️ Expiração: M1
 📊 Confiança: {s['confianca']:.0f}%
 🧠 Estratégia: {est}
+📐 Tendência: {tendencia}
 
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
@@ -591,12 +742,12 @@ class Bot:
         banner()
         print(f"\n  ⚛️ Iniciando Quantum IA - Máxima Assertividade...\n")
         print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🔥 65% Taxa Mínima | 🔥 65% Confiança | 🛡️ Filtro Pavio | ⏱️ 5min entre sinais\n")
+        print(f"  🔥 65% Taxa Mínima | 🔥 65% Confiança | 🛡️ Filtro Pavio Rigoroso | ⏱️ 5min entre sinais\n")
         if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
         self.iq.atualizar()
         self.ultimo_dia=datetime.now(FUSO_BR).day
         print(f"\n  ✅ QUANTUM IA | 🔥 Máxima Assertividade | 🎯 Melhor Combinação | 4 Pares\n")
-        self.tg.send(f"🔥 *QUANTUM IA - MÁXIMA ASSERTIVIDADE*\n👨‍🏫 Trader Professor\n📊 5 Estratégias | 4 Pares\n🎯 Taxa Mínima: 65%\n🔥 Confiança Mínima: 65%\n⏱️ Intervalo: 5min\n🔄 Troca Rápida\n🛡️ Filtro de Pavio\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
+        self.tg.send(f"🔥 *QUANTUM IA - MÁXIMA ASSERTIVIDADE*\n👨‍🏫 Trader Professor\n📊 5 Estratégias | 4 Pares\n🎯 Taxa Mínima: 65%\n🔥 Confiança Mínima: 65%\n⏱️ Intervalo: 5min\n🛡️ Filtro Pavio Rigoroso\n📐 Filtro de Tendência\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
 
         while True:
             try:
@@ -610,7 +761,6 @@ class Bot:
                 if not self.op:
                     try:
                         sinal=self.m.obter_sinal_dinamico(self.iq.velas,[])
-                        # ⏱️ 5 MINUTOS ENTRE SINAIS (300 segundos)
                         if sinal and time.time()-self.ult>300:
                             self.op=True;self.sinais+=1
                             he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=1)).strftime('%H:%M')
@@ -636,7 +786,7 @@ class Bot:
                         comb=self.m.catalogador.combinacao_atual
                         info_comb=f" | 🧠 {comb['estrategia']} em {comb['par']}" if comb else ""
                         print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio}{info_comb}")
+                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio} | 📊{self.m.sinais_bloqueados_tendencia}{info_comb}")
                         print(f"{C.GOLD}│{C.E} 🔥 65%+ | ⚔️ {get_filosofia()}")
                         print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
                     except:pass
