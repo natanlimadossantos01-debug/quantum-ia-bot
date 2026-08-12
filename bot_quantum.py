@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS)
+⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) - SEM FILTROS
 🕯️ 12 Quadrantes + 5-2-0 + Chinesa 3.0
-🛡️ Filtros: Pavio, Tendência, Vela Forte
 📨 Envia sinal + análise + resultado com placar (sem executar trades)
 🧠 Catalogador + escolha da melhor combinação
+🚫 SEM FILTROS (Pavio, Tendência, Vela Forte REMOVIDOS)
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
 from datetime import datetime, timedelta, timezone
@@ -15,7 +15,7 @@ signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
 def banner():
-    print("⚛️ QUANTUM BOT PRO - Sinais Telegram | 14 Estratégias | Catalogador")
+    print("⚛️ QUANTUM BOT PRO - Sinais Telegram | 14 Estratégias | SEM FILTROS")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -86,7 +86,6 @@ class EstrategiasM1:
         elif downs > ups: return 'down'
         return 'doji'
 
-    # 12 estratégias de quadrantes
     def mhi1(self):
         if len(self.quadrante_anterior) < 3: return None
         minoria = self.get_minoria(self.quadrante_anterior, [-3, -2, -1])
@@ -160,7 +159,6 @@ class EstrategiasM1:
         if cor == 'doji': return None
         return {'estrategia': 'R7', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'entrada': 6}
 
-    # 5-2-0
     def estrategia_520(self, v):
         try:
             if len(v) < 25: return None, 0
@@ -176,7 +174,6 @@ class EstrategiasM1:
             return None, 0
         except: return None, 0
 
-    # Chinesa 3.0
     def chinesa_30(self, v):
         try:
             if len(v) < 30: return None, 0
@@ -207,68 +204,6 @@ class EstrategiasM1:
                     sinais.append(resultado)
             except: pass
         return sinais
-
-# ------------------------- FILTROS -------------------------
-class FiltroTendencia:
-    def __init__(self): self.forca_minima = 0.0002
-    def analisar_tendencia(self, velas):
-        if len(velas) < 20: return "NEUTRA", 0
-        precos = [v['close'] for v in velas]
-        ema9 = np.mean(precos[-9:]); ema21 = np.mean(precos[-21:])
-        high = [v['high'] for v in velas]; low = [v['low'] for v in velas]
-        plus_dm, minus_dm, tr = [], [], []
-        for i in range(1, min(14, len(velas))):
-            up_move = high[-i] - high[-i-1]
-            down_move = low[-i-1] - low[-i]
-            plus_dm.append(up_move if up_move > down_move and up_move > 0 else 0)
-            minus_dm.append(down_move if down_move > up_move and down_move > 0 else 0)
-            tr.append(max(high[-i]-low[-i], abs(high[-i]-precos[-i-1]), abs(low[-i]-precos[-i-1])))
-        if not tr: return "NEUTRA", 0
-        atr = np.mean(tr)
-        plus_di = (np.mean(plus_dm)/atr*100) if atr>0 and plus_dm else 0
-        minus_di = (np.mean(minus_dm)/atr*100) if atr>0 and minus_dm else 0
-        dx = abs(plus_di - minus_di)/(plus_di + minus_di)*100 if (plus_di+minus_di)>0 else 0
-        if ema9 > ema21*(1+self.forca_minima) and plus_di > minus_di:
-            tendencia = "ALTA FORTE 📈" if dx>25 else "ALTA 📈"
-        elif ema9 < ema21*(1-self.forca_minima) and minus_di > plus_di:
-            tendencia = "BAIXA FORTE 📉" if dx>25 else "BAIXA 📉"
-        else:
-            tendencia = "NEUTRA ➡️"; dx = min(dx, 20)
-        return tendencia, dx
-    def sinal_alinhado(self, direcao, tendencia, forca):
-        if "NEUTRA" in tendencia: return True
-        if direcao == "CALL": return "ALTA" in tendencia or ("BAIXA" in tendencia and forca < 25)
-        else: return "BAIXA" in tendencia or ("ALTA" in tendencia and forca < 25)
-
-class FiltroPavio:
-    @staticmethod
-    def ok(velas, direcao):
-        if len(velas) < 2: return True
-        va, vb = velas[-1], velas[-2]
-        corpo_va = abs(va['close'] - va['open'])
-        if corpo_va == 0: return False
-        if direcao == 'CALL':
-            if va['high'] - max(va['close'], va['open']) > corpo_va * 0.4: return False
-        else:
-            if min(va['close'], va['open']) - va['low'] > corpo_va * 0.4: return False
-        corpo_vb = abs(vb['close'] - vb['open'])
-        if corpo_vb > 0:
-            if direcao == 'CALL':
-                if vb['high'] - max(vb['close'], vb['open']) > corpo_vb * 0.5: return False
-            else:
-                if min(vb['close'], vb['open']) - vb['low'] > corpo_vb * 0.5: return False
-        range_total = va['high'] - va['low']
-        if range_total > 0 and corpo_va < range_total * 0.3: return False
-        return True
-
-class FiltroVelaForte:
-    @staticmethod
-    def ok(velas):
-        if len(velas) < 15: return True
-        ranges = [velas[i]['high'] - velas[i]['low'] for i in range(-14, 0)]
-        atr = np.mean(ranges)
-        ultimo_range = velas[-1]['high'] - velas[-1]['low']
-        return ultimo_range <= atr * 2.0
 
 # ------------------------- CATALOGADOR -------------------------
 class Catalogador:
@@ -310,14 +245,7 @@ class Catalogador:
 # ------------------------- TRADER PROFESSOR -------------------------
 class TraderProfessor:
     def __init__(self):
-        self.filtro_tendencia = FiltroTendencia()
         self.tendencias = {nome:"NEUTRA" for nome in ATIVOS_OTC}
-
-    def atualizar_tendencias(self, velas_dict):
-        for nome, velas in velas_dict.items():
-            if len(velas) >= 20:
-                tendencia, _ = self.filtro_tendencia.analisar_tendencia(velas)
-                self.tendencias[nome] = tendencia
 
     def ler_grafico(self, velas, direcao):
         if len(velas) < 5: return "Poucas velas"
@@ -325,16 +253,12 @@ class TraderProfessor:
         v, v1 = velas[-1], velas[-2]
         corpo = abs(v['close'] - v['open'])
         range_total = v['high'] - v['low']
-        pavio_sup = v['high'] - max(v['close'], v['open'])
-        pavio_inf = min(v['close'], v['open']) - v['low']
         if direcao == 'CALL':
-            if pavio_inf > corpo*2 and pavio_sup < corpo*0.3: obs.append("🔨 Martelo")
+            if (min(v['close'], v['open']) - v['low']) > corpo*2 and (v['high'] - max(v['close'], v['open'])) < corpo*0.3: obs.append("🔨 Martelo")
             elif corpo > abs(v1['close']-v1['open'])*1.5 and v['close'] > v1['open']: obs.append("📈 Engolfo alta")
-            if pavio_sup > corpo*0.6: obs.append("⚠️ Pavio superior")
         else:
-            if pavio_sup > corpo*2 and pavio_inf < corpo*0.3: obs.append("💫 Estrela cadente")
+            if (v['high'] - max(v['close'], v['open'])) > corpo*2 and (min(v['close'], v['open']) - v['low']) < corpo*0.3: obs.append("💫 Estrela cadente")
             elif corpo > abs(v1['close']-v1['open'])*1.5 and v['close'] < v1['open']: obs.append("📉 Engolfo baixa")
-            if pavio_inf > corpo*0.6: obs.append("⚠️ Pavio inferior")
         if corpo > range_total*0.6: obs.append("💪 Vela forte")
         precos = [x['close'] for x in velas]
         altas = sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
@@ -348,16 +272,8 @@ class TraderProfessor:
         ativo = sinal['ativo']; direcao = sinal['direcao']; conf = sinal.get('confianca',0)
         est = sinal.get('estrategia','N/A')
         leitura = self.ler_grafico(velas, direcao)
-        tendencia = self.tendencias.get(ativo, 'NEUTRA')
-        alinhamento = "✅ ALINHADO" if (
-            (direcao == "CALL" and "ALTA" in tendencia) or 
-            (direcao == "PUT" and "BAIXA" in tendencia) or
-            "NEUTRA" in tendencia
-        ) else "⚠️ CONTRA TENDÊNCIA"
         return f"""👨‍🏫 *ANÁLISE DO TRADER*
 
-📊 *Mercado:* {tendencia}
-📐 *Alinhamento:* {alinhamento}
 👁️ *Gráfico:* {leitura}
 🧠 *Estratégia:* {est}
 🎯 *Decisão:* {direcao} com {conf:.0f}% de confiança
@@ -370,7 +286,6 @@ class BotProSinais:
         self.velas = {nome: deque(maxlen=100) for nome in ATIVOS_OTC}
         self.estrategias_quadrantes = EstrategiasM1()
         self.catalogador = Catalogador()
-        self.filtro_tendencia = FiltroTendencia()
         self.trader = TraderProfessor()
         self.ult_sinal = 0
         self.sinais_enviados = 0
@@ -428,10 +343,8 @@ class BotProSinais:
                     if "Expecting value" in str(e): self.conectar_iq()
 
     def buscar_sinal(self):
-        # Preenche os quadrantes com a vela atual do par escolhido
         for nome_par, velas in self.velas.items():
             if len(velas) < 30: continue
-            tendencia, forca = self.filtro_tendencia.analisar_tendencia(velas)
             # Estratégias de quadrante
             self.estrategias_quadrantes.velas = []
             for v in velas:
@@ -439,16 +352,17 @@ class BotProSinais:
             sinais_quad = self.estrategias_quadrantes.executar_todas()
             for s in sinais_quad:
                 d = s['direcao']
-                conf = 65  # confiança padrão para quadrantes
-                if FiltroPavio.ok(velas, d) and FiltroVelaForte.ok(velas) and self.filtro_tendencia.sinal_alinhado(d, tendencia, forca):
-                    return {'ativo': nome_par, 'direcao': d, 'confianca': conf, 'estrategia': s['nome'], 'tendencia': tendencia, 'velas': velas}
-            # 5-2-0 e Chinesa 3.0
+                conf = 65
+                # 🚫 SEM FILTROS - aceita qualquer sinal
+                return {'ativo': nome_par, 'direcao': d, 'confianca': conf, 'estrategia': s['nome'], 'tendencia': 'NEUTRA', 'velas': velas}
+            # 5-2-0
             d520, c520 = self.estrategias_quadrantes.estrategia_520(velas)
-            if d520 and c520 >= 65 and FiltroPavio.ok(velas, d520) and FiltroVelaForte.ok(velas) and self.filtro_tendencia.sinal_alinhado(d520, tendencia, forca):
-                return {'ativo': nome_par, 'direcao': d520, 'confianca': c520, 'estrategia': '5-2-0', 'tendencia': tendencia, 'velas': velas}
+            if d520 and c520 >= 50:  # confiança mínima reduzida para 50%
+                return {'ativo': nome_par, 'direcao': d520, 'confianca': c520, 'estrategia': '5-2-0', 'tendencia': 'NEUTRA', 'velas': velas}
+            # Chinesa 3.0
             dch, cch = self.estrategias_quadrantes.chinesa_30(velas)
-            if dch and cch >= 65 and FiltroPavio.ok(velas, dch) and FiltroVelaForte.ok(velas) and self.filtro_tendencia.sinal_alinhado(dch, tendencia, forca):
-                return {'ativo': nome_par, 'direcao': dch, 'confianca': cch, 'estrategia': 'Chinesa 3.0', 'tendencia': tendencia, 'velas': velas}
+            if dch and cch >= 50:  # confiança mínima reduzida para 50%
+                return {'ativo': nome_par, 'direcao': dch, 'confianca': cch, 'estrategia': 'Chinesa 3.0', 'tendencia': 'NEUTRA', 'velas': velas}
         return None
 
     def _calcular_assertividade(self):
@@ -511,12 +425,11 @@ class BotProSinais:
 
     async def executar(self):
         banner()
-        print("⚛️ Bot Pro Telegram iniciando...")
-        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | M1\n🛡️ Filtros: Pavio, Tendência, Vela Forte\n⏱️ Sinais a cada 5min | Placar + Catalogador")
+        print("⚛️ Bot Pro Telegram iniciando (SEM FILTROS)...")
+        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | M1\n🚫 SEM FILTROS\n⏱️ Sinais a cada 5min | Placar + Catalogador")
         while True:
             try:
                 await self.atualizar_velas()
-                self.trader.atualizar_tendencias(self.velas)
                 sinal = self.buscar_sinal()
                 if sinal and time.time() - self.ult_sinal > 300:
                     self.sinais_enviados += 1
@@ -525,6 +438,7 @@ class BotProSinais:
                     proximo_candle = agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
                     he = proximo_candle.strftime('%H:%M')
                     emoji = '🟢' if sinal['direcao']=='CALL' else '🔴'
+                    # 📨 ENVIA O SINAL
                     msg_sinal = f"""⚛️ SINAL QUANTUM PRO ⚛️
 
 ⏰ Horário: {he}
@@ -533,14 +447,15 @@ class BotProSinais:
 ⌛️ Expiração: M1
 📊 Confiança: {sinal['confianca']:.0f}%
 🧠 Estratégia: {sinal['estrategia']}
-📐 Tendência: {sinal['tendencia']}
 
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
                     self.tg.send(msg_sinal)
+                    # 📨 ENVIA A ANÁLISE
                     analise = self.trader.explicar_entrada(sinal, sinal['velas'])
                     self.tg.send(analise)
                     print(f"⚛️ #{self.sinais_enviados} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal['estrategia']}")
+                    # Dispara monitoramento do resultado
                     asyncio.create_task(self.monitorar_resultado(sinal, proximo_candle))
                 await asyncio.sleep(30)
             except KeyboardInterrupt:
