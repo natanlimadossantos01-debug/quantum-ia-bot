@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ⚛️ QUANTUM SIMPLES - Sinais OTC com Catálogo Inteligente
-🕯️ Estratégias: MHI 1 (entrada vela 0), MHI 2 (entrada vela 1), Milhão Minoria (entrada vela 0)
+🕯️ Estratégias: MHI 1, MHI 2, VITUXO 2.0, Milhão Minoria
 🛡️ Filtro único: Horário (evita sessão asiática)
 🧠 Catálogo: escolhe a melhor estratégia por par
 📨 Sinal + resultado (com gale 1) via Telegram
@@ -15,12 +15,12 @@ signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # Configurações
-INTERVALO_MINIMO = 300       # 5 min entre sinais (você pode ajustar)
+INTERVALO_MINIMO = 300       # 5 min entre sinais
 USAR_GALE = True             # True para simular gale 1 (correção com duas velas)
 CONFIANCA_MINIMA = 0         # Sem confiança mínima, as estratégias retornam confiança fixa
 
 def banner():
-    print("⚛️ QUANTUM SIMPLES - MHI + Milhão Minoria | Catálogo Inteligente | Horários Corretos")
+    print("⚛️ QUANTUM SIMPLES - MHI + VITUXO + Milhão Minoria | Catálogo Inteligente")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -52,11 +52,10 @@ class Telegram:
 # ------------------------- ESTRATÉGIAS SIMPLES -------------------------
 class MHI1:
     """MHI 1: minoria das 3 últimas velas do quadrante anterior, entrada na 1ª vela (offset 0)"""
-    offset_minutos = 0  # entrada na vela 0 do quadrante atual
+    offset_minutos = 0
     def analisar(self, velas):
         if len(velas) < 10: return None
-        # últimas 3 velas do quadrante anterior (quadrante anterior = 5 velas, mas usamos as 3 últimas: índices -3,-2,-1)
-        quadrante_anterior = list(velas)[-6:-3]
+        quadrante_anterior = list(velas)[-6:-3]  # últimas 3 do quadrante anterior
         calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
         puts = 3 - calls
         if calls == 1: return ('CALL', 70)
@@ -65,7 +64,7 @@ class MHI1:
 
 class MHI2:
     """MHI 2: minoria das 3 últimas velas do quadrante anterior, entrada na 2ª vela (offset 1)"""
-    offset_minutos = 1  # entrada na vela 1 do quadrante atual (segunda vela)
+    offset_minutos = 1
     def analisar(self, velas):
         if len(velas) < 10: return None
         quadrante_anterior = list(velas)[-6:-3]
@@ -73,6 +72,23 @@ class MHI2:
         puts = 3 - calls
         if calls == 1: return ('CALL', 68)
         elif puts == 1: return ('PUT', 68)
+        return None
+
+class Vituxo2:
+    """VITUXO 2.0: maioria das 3 primeiras velas do quadrante anterior, entrada na 3ª vela (offset 2)"""
+    offset_minutos = 2
+    def analisar(self, velas):
+        if len(velas) < 10: return None
+        quadrante_anterior = list(velas)[-6:-3]  # 3 primeiras do quadrante anterior? VITUXO usa as 3 primeiras (índices 0,1,2 do quadrante)
+        # Para usar as 3 primeiras do quadrante anterior, precisamos pegar as posições -6, -5, -4
+        # No código original: quadrante_anterior = v[-6:-3] (pega índices -6,-5,-4) = 3 primeiras do quadrante anterior
+        # Então está correto: pega as 3 primeiras do quadrante anterior
+        calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
+        puts = 3 - calls
+        if calls > puts:  # maioria verde -> CALL
+            return ('CALL', 70)
+        elif puts > calls:  # maioria vermelha -> PUT
+            return ('PUT', 70)
         return None
 
 class MilhaoMinoria:
@@ -90,7 +106,7 @@ class MilhaoMinoria:
 # ------------------------- CATALOGADOR INTELIGENTE -------------------------
 class Catalogador:
     def __init__(self):
-        self.performance = {}  # chave: "estrategia|par"
+        self.performance = {}
         self.total_operacoes = 0
 
     def registrar(self, estrategia, par, ganhou):
@@ -145,6 +161,7 @@ class BotSimples:
         self.estrategias = [
             ('MHI 1', MHI1()),
             ('MHI 2', MHI2()),
+            ('VITUXO 2.0', Vituxo2()),
             ('Milhão Minoria', MilhaoMinoria())
         ]
         self.catalogador = Catalogador()
@@ -198,7 +215,6 @@ class BotSimples:
                     if "Expecting value" in str(e): self.conectar_iq()
 
     def buscar_sinal(self):
-        # Filtro de horário: evita madrugada
         hora = datetime.now(FUSO_BR).hour
         if 22 <= hora or hora < 6:
             return None
@@ -227,46 +243,32 @@ class BotSimples:
         return None
 
     def calcular_horario_entrada(self, offset):
-        """
-        Calcula o horário de entrada da vela correta.
-        offset = 0 → primeira vela do quadrante (múltiplo de 5)
-        offset = 1 → segunda vela do quadrante (múltiplo de 5 + 1)
-        """
         agora = datetime.now(FUSO_BR)
+        if offset is None:
+            return agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
         minuto = agora.minute
         resto = minuto % 5
         if resto == 0 and agora.second == 0:
             base = agora.replace(second=0, microsecond=0)
         else:
             base = agora.replace(second=0, microsecond=0) + timedelta(minutes=5 - resto)
-        # Adiciona o offset dentro do quadrante
-        horario = base + timedelta(minutes=offset)
-        # Se o offset ultrapassar o quadrante (ex.: offset=1 e base=20:40, fica 20:41, ok)
-        # Se por acaso offset=5 (não acontece), ajustaria, mas não é o caso.
-        return horario
+        offset = min(offset, 4)
+        return base + timedelta(minutes=offset)
 
     async def monitorar_resultado(self, sinal, horario_entrada):
-        """
-        Verifica o resultado da vela de entrada.
-        Se loss e USAR_GALE=True, verifica a vela seguinte (gale 1).
-        """
         ativo = sinal['ativo']
         direcao = sinal['direcao']
         estrategia = sinal['estrategia']
         confianca = sinal['confianca']
 
-        # Aguarda o fechamento da vela de entrada
         agora = datetime.now(FUSO_BR)
         espera = (horario_entrada + timedelta(minutes=1) - agora).total_seconds()
         if espera > 0:
             await asyncio.sleep(espera)
-        await asyncio.sleep(5)  # margem para atualização
-
-        # Atualiza velas para obter o candle fechado
+        await asyncio.sleep(5)
         await self.atualizar_velas()
         velas = self.velas[ativo]
 
-        # Encontra o candle exato
         ganhou = False
         for v in velas:
             if v['time'].replace(second=0) == horario_entrada:
@@ -279,7 +281,6 @@ class BotSimples:
             self.catalogador.registrar(estrategia, ativo, True)
         else:
             if USAR_GALE:
-                # Gale 1: espera a vela seguinte (horario_entrada + 1 minuto)
                 proxima_vela = horario_entrada + timedelta(minutes=1)
                 agora = datetime.now(FUSO_BR)
                 espera = (proxima_vela + timedelta(minutes=1) - agora).total_seconds()
@@ -306,7 +307,6 @@ class BotSimples:
                 resultado = "❌ LOSS"
                 self.catalogador.registrar(estrategia, ativo, False)
 
-        # Envia correção
         total = self.placar['w'] + self.placar['g1'] + self.placar['l']
         tx = round(((self.placar['w'] + self.placar['g1']) / total) * 100, 1) if total > 0 else 0.0
         msg = f"""{resultado}
@@ -315,14 +315,13 @@ class BotSimples:
 🎯 Assertividade: {tx}%"""
         self.tg.send(msg)
 
-        # Relatório do catálogo a cada 10 operações
         if self.catalogador.total_operacoes % 10 == 0 and self.catalogador.total_operacoes > 0:
             self.tg.send(self.catalogador.relatorio())
 
     async def executar(self):
         banner()
         print("⚛️ Bot Simples iniciando...")
-        self.tg.send("🔥 *QUANTUM SIMPLES ATIVADO*\n📊 Estratégias: MHI 1, MHI 2, Milhão Minoria\n🛡️ Filtro: Horário\n🧠 Catálogo automático da melhor combinação\n⏱️ Horários de entrada corretos")
+        self.tg.send("🔥 *QUANTUM SIMPLES ATIVADO*\n📊 Estratégias: MHI 1, MHI 2, VITUXO 2.0, Milhão Minoria\n🛡️ Filtro: Horário\n🧠 Catálogo automático da melhor combinação\n⏱️ Horários de entrada corretos")
         while True:
             try:
                 await self.atualizar_velas()
