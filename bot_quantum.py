@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) + FILTROS DE QUALIDADE
+⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) - SEM FILTROS
 🕯️ 12 Quadrantes + 5-2-0 + Chinesa 3.0
-🛡️ Filtros: EMA9, Tendência (ADX), Pavio, Vela Forte
-🧠 Catalogador + escolha da melhor combinação
 📨 Envia sinal + análise + resultado com placar (sem executar trades)
+🧠 Catalogador + escolha da melhor combinação
+🚫 SEM FILTROS (Pavio, Tendência, Vela Forte REMOVIDOS)
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
 from datetime import datetime, timedelta, timezone
@@ -14,19 +14,8 @@ from pathlib import Path
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
-# ═══════════════════════════════════════════════════════════
-# CONFIGURAÇÕES DE FILTROS
-# ═══════════════════════════════════════════════════════════
-CONFIANCA_MINIMA = 65        # Aumente para 70 para menos sinais
-USAR_FILTRO_PAVIO = True     # Rejeita pavios longos
-USAR_FILTRO_VELA_FORTE = True # Evita volatilidade extrema
-USAR_FILTRO_TENDENCIA = True # Só opera a favor da tendência
-USAR_FILTRO_EMA9 = True      # Novo filtro de EMA9
-USAR_FILTRO_HORARIO = True   # Evita sessão asiática (baixa liquidez)
-INTERVALO_MINIMO = 300       # Segundos entre sinais (5 min)
-
 def banner():
-    print("⚛️ QUANTUM BOT PRO - Sinais Telegram | 14 Estratégias | Filtros de Qualidade")
+    print("⚛️ QUANTUM BOT PRO - Sinais Telegram | 14 Estratégias | SEM FILTROS")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -55,7 +44,7 @@ class Telegram:
         try: requests.post(f"{self.url}/sendMessage", json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, timeout=5)
         except: pass
 
-# ------------------------- ESTRATÉGIAS -------------------------
+# ------------------------- ESTRATÉGIAS (12 QUADRANTES + 5-2-0 + CHINESA 3.0) -------------------------
 class EstrategiasM1:
     def __init__(self):
         self.velas = []
@@ -97,7 +86,6 @@ class EstrategiasM1:
         elif downs > ups: return 'down'
         return 'doji'
 
-    # 12 quadrantes
     def mhi1(self):
         if len(self.quadrante_anterior) < 3: return None
         minoria = self.get_minoria(self.quadrante_anterior, [-3, -2, -1])
@@ -171,7 +159,6 @@ class EstrategiasM1:
         if cor == 'doji': return None
         return {'estrategia': 'R7', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'entrada': 6}
 
-    # 5-2-0
     def estrategia_520(self, v):
         try:
             if len(v) < 25: return None, 0
@@ -187,7 +174,6 @@ class EstrategiasM1:
             return None, 0
         except: return None, 0
 
-    # Chinesa 3.0
     def chinesa_30(self, v):
         try:
             if len(v) < 30: return None, 0
@@ -218,60 +204,6 @@ class EstrategiasM1:
                     sinais.append(resultado)
             except: pass
         return sinais
-
-# ------------------------- FILTROS -------------------------
-class Filtros:
-    @staticmethod
-    def ema9(velas):
-        if len(velas) < 9: return None
-        precos = [v['close'] for v in velas]
-        k = 2 / (9 + 1)
-        ema = precos[0]
-        for p in precos[1:]:
-            ema = p * k + ema * (1 - k)
-        return ema
-
-    @staticmethod
-    def sinal_alinhado_ema(velas, direcao):
-        """CALL: fechamento acima da EMA9; PUT: fechamento abaixo da EMA9"""
-        ema = Filtros.ema9(velas)
-        if ema is None:
-            return False
-        fechamento = velas[-1]['close']
-        if direcao == 'CALL':
-            return fechamento > ema
-        else:
-            return fechamento < ema
-
-    @staticmethod
-    def pavio_ok(velas, direcao):
-        va = velas[-1]
-        corpo = abs(va['close'] - va['open'])
-        if corpo == 0:
-            return False
-        if direcao == 'CALL':
-            pavio_sup = va['high'] - max(va['close'], va['open'])
-            return pavio_sup <= corpo * 0.4
-        else:
-            pavio_inf = min(va['close'], va['open']) - va['low']
-            return pavio_inf <= corpo * 0.4
-
-    @staticmethod
-    def vela_forte_ok(velas):
-        if len(velas) < 15: return True
-        ranges = [velas[i]['high'] - velas[i]['low'] for i in range(-14, 0)]
-        atr = np.mean(ranges)
-        ultimo_range = velas[-1]['high'] - velas[-1]['low']
-        return ultimo_range <= atr * 2.0
-
-    @staticmethod
-    def horario_ok():
-        agora = datetime.now(FUSO_BR)
-        hora = agora.hour
-        # Evita sessão asiática (22h-5h) e madrugada
-        if 22 <= hora or hora < 6:
-            return False
-        return True
 
 # ------------------------- CATALOGADOR -------------------------
 class Catalogador:
@@ -321,16 +253,12 @@ class TraderProfessor:
         v, v1 = velas[-1], velas[-2]
         corpo = abs(v['close'] - v['open'])
         range_total = v['high'] - v['low']
-        pavio_sup = v['high'] - max(v['close'], v['open'])
-        pavio_inf = min(v['close'], v['open']) - v['low']
         if direcao == 'CALL':
-            if pavio_inf > corpo*2 and pavio_sup < corpo*0.3: obs.append("🔨 Martelo")
+            if (min(v['close'], v['open']) - v['low']) > corpo*2 and (v['high'] - max(v['close'], v['open'])) < corpo*0.3: obs.append("🔨 Martelo")
             elif corpo > abs(v1['close']-v1['open'])*1.5 and v['close'] > v1['open']: obs.append("📈 Engolfo alta")
-            if pavio_sup > corpo*0.6: obs.append("⚠️ Pavio superior")
         else:
-            if pavio_sup > corpo*2 and pavio_inf < corpo*0.3: obs.append("💫 Estrela cadente")
+            if (v['high'] - max(v['close'], v['open'])) > corpo*2 and (min(v['close'], v['open']) - v['low']) < corpo*0.3: obs.append("💫 Estrela cadente")
             elif corpo > abs(v1['close']-v1['open'])*1.5 and v['close'] < v1['open']: obs.append("📉 Engolfo baixa")
-            if pavio_inf > corpo*0.6: obs.append("⚠️ Pavio inferior")
         if corpo > range_total*0.6: obs.append("💪 Vela forte")
         precos = [x['close'] for x in velas]
         altas = sum(1 for i in range(-5,0) if i>=-len(precos)+1 and precos[i]>precos[i-1])
@@ -415,8 +343,6 @@ class BotProSinais:
                     if "Expecting value" in str(e): self.conectar_iq()
 
     def buscar_sinal(self):
-        if USAR_FILTRO_HORARIO and not Filtros.horario_ok():
-            return None
         for nome_par, velas in self.velas.items():
             if len(velas) < 30: continue
             # Estratégias de quadrante
@@ -426,32 +352,17 @@ class BotProSinais:
             sinais_quad = self.estrategias_quadrantes.executar_todas()
             for s in sinais_quad:
                 d = s['direcao']
-                conf = CONFIANCA_MINIMA
-                # Aplica filtros
-                if USAR_FILTRO_PAVIO and not Filtros.pavio_ok(velas, d):
-                    continue
-                if USAR_FILTRO_VELA_FORTE and not Filtros.vela_forte_ok(velas):
-                    continue
-                if USAR_FILTRO_EMA9 and not Filtros.sinal_alinhado_ema(velas, d):
-                    continue
-                # Se passou, retorna
-                return {'ativo': nome_par, 'direcao': d, 'confianca': conf, 'estrategia': s['nome'], 'velas': velas}
+                conf = 65
+                # 🚫 SEM FILTROS - aceita qualquer sinal
+                return {'ativo': nome_par, 'direcao': d, 'confianca': conf, 'estrategia': s['nome'], 'tendencia': 'NEUTRA', 'velas': velas}
             # 5-2-0
             d520, c520 = self.estrategias_quadrantes.estrategia_520(velas)
-            if d520 and c520 >= CONFIANCA_MINIMA:
-                if USAR_FILTRO_PAVIO and not Filtros.pavio_ok(velas, d520): pass
-                elif USAR_FILTRO_VELA_FORTE and not Filtros.vela_forte_ok(velas): pass
-                elif USAR_FILTRO_EMA9 and not Filtros.sinal_alinhado_ema(velas, d520): pass
-                else:
-                    return {'ativo': nome_par, 'direcao': d520, 'confianca': c520, 'estrategia': '5-2-0', 'velas': velas}
+            if d520 and c520 >= 50:  # confiança mínima reduzida para 50%
+                return {'ativo': nome_par, 'direcao': d520, 'confianca': c520, 'estrategia': '5-2-0', 'tendencia': 'NEUTRA', 'velas': velas}
             # Chinesa 3.0
             dch, cch = self.estrategias_quadrantes.chinesa_30(velas)
-            if dch and cch >= CONFIANCA_MINIMA:
-                if USAR_FILTRO_PAVIO and not Filtros.pavio_ok(velas, dch): pass
-                elif USAR_FILTRO_VELA_FORTE and not Filtros.vela_forte_ok(velas): pass
-                elif USAR_FILTRO_EMA9 and not Filtros.sinal_alinhado_ema(velas, dch): pass
-                else:
-                    return {'ativo': nome_par, 'direcao': dch, 'confianca': cch, 'estrategia': 'Chinesa 3.0', 'velas': velas}
+            if dch and cch >= 50:  # confiança mínima reduzida para 50%
+                return {'ativo': nome_par, 'direcao': dch, 'confianca': cch, 'estrategia': 'Chinesa 3.0', 'tendencia': 'NEUTRA', 'velas': velas}
         return None
 
     def _calcular_assertividade(self):
@@ -476,7 +387,6 @@ class BotProSinais:
             resultado = "✅ WIN"
             self.catalogador.registrar_resultado(estrategia, ativo, True)
         else:
-            # Gale 1
             proximo_candle = horario_entrada + timedelta(minutes=1)
             agora = datetime.now(FUSO_BR)
             espera = (proximo_candle + timedelta(minutes=1) - agora).total_seconds()
@@ -504,21 +414,31 @@ class BotProSinais:
 🎯 Assertividade: {tx}%"""
         self.tg.send(msg)
 
+    def escolher_melhor_estrategia(self):
+        melhor = self.catalogador.escolher_melhor(3)
+        if melhor:
+            self.estrategia_atual = melhor['estrategia']
+            self.par_atual = melhor['par']
+            print(f"🎯 Melhor combinação: {melhor['estrategia']} em {melhor['par']} ({melhor['taxa']}%)")
+            return melhor
+        return None
+
     async def executar(self):
         banner()
-        print("⚛️ Bot Pro Telegram com filtros de qualidade iniciando...")
-        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | M1\n🛡️ Filtros: EMA9, Pavio, Vela Forte, Horário\n⏱️ Sinais a cada 5min | Placar + Catalogador")
+        print("⚛️ Bot Pro Telegram iniciando (SEM FILTROS)...")
+        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | M1\n🚫 SEM FILTROS\n⏱️ Sinais a cada 5min | Placar + Catalogador")
         while True:
             try:
                 await self.atualizar_velas()
                 sinal = self.buscar_sinal()
-                if sinal and time.time() - self.ult_sinal > INTERVALO_MINIMO:
+                if sinal and time.time() - self.ult_sinal > 300:
                     self.sinais_enviados += 1
                     self.ult_sinal = time.time()
                     agora = datetime.now(FUSO_BR)
                     proximo_candle = agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
                     he = proximo_candle.strftime('%H:%M')
                     emoji = '🟢' if sinal['direcao']=='CALL' else '🔴'
+                    # 📨 ENVIA O SINAL
                     msg_sinal = f"""⚛️ SINAL QUANTUM PRO ⚛️
 
 ⏰ Horário: {he}
@@ -531,9 +451,11 @@ class BotProSinais:
 ⚠️ Entrar somente no horário marcado.
 🔄 1 recuperação (Gale 1)!"""
                     self.tg.send(msg_sinal)
+                    # 📨 ENVIA A ANÁLISE
                     analise = self.trader.explicar_entrada(sinal, sinal['velas'])
                     self.tg.send(analise)
                     print(f"⚛️ #{self.sinais_enviados} {sinal['ativo']}-OTC {sinal['direcao']} | {sinal['confianca']:.0f}% | {sinal['estrategia']}")
+                    # Dispara monitoramento do resultado
                     asyncio.create_task(self.monitorar_resultado(sinal, proximo_candle))
                 await asyncio.sleep(30)
             except KeyboardInterrupt:
