@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM SIMPLES - Sinais OTC com Catálogo Inteligente
-🕯️ Estratégias: MHI 1, MHI 2, VITUXO 2.0, Milhão Minoria
-🛡️ Filtro único: Horário (evita sessão asiática)
-🧠 Catálogo: escolhe a melhor estratégia por par
+⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) + HORÁRIOS CORRETOS
+🕯️ 12 Quadrantes + 5-2-0 + Chinesa 3.0
+🛡️ Filtros opcionais: Pavio, Vela Forte, Horário (sem filtros de tendência)
+🧠 Catalogador inteligente
 📨 Sinal + resultado (com gale 1) via Telegram
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -16,11 +16,11 @@ FUSO_BR = timezone(timedelta(hours=-3))
 
 # Configurações
 INTERVALO_MINIMO = 300       # 5 min entre sinais
-USAR_GALE = True             # True para simular gale 1 (correção com duas velas)
-CONFIANCA_MINIMA = 0         # Sem confiança mínima, as estratégias retornam confiança fixa
+USAR_GALE = True             # Simula gale 1 (correção com duas velas)
+CONFIANCA_MINIMA = 0         # Não usado (estratégias retornam confiança fixa)
 
 def banner():
-    print("⚛️ QUANTUM SIMPLES - MHI + VITUXO + Milhão Minoria | Catálogo Inteligente")
+    print("⚛️ QUANTUM BOT PRO - 14 Estratégias | Horários Corretos | Catálogo")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -49,61 +49,170 @@ class Telegram:
         try: requests.post(f"{self.url}/sendMessage", json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, timeout=5)
         except: pass
 
-# ------------------------- ESTRATÉGIAS SIMPLES -------------------------
-class MHI1:
-    """MHI 1: minoria das 3 últimas velas do quadrante anterior, entrada na 1ª vela (offset 0)"""
-    offset_minutos = 0
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        quadrante_anterior = list(velas)[-6:-3]  # últimas 3 do quadrante anterior
-        calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls == 1: return ('CALL', 70)
-        elif puts == 1: return ('PUT', 70)
-        return None
+# ------------------------- ESTRATÉGIAS -------------------------
+class EstrategiasM1:
+    def __init__(self):
+        self.velas = []
+        self.quadrante_anterior = []
+        self.quadrante_atual = []
 
-class MHI2:
-    """MHI 2: minoria das 3 últimas velas do quadrante anterior, entrada na 2ª vela (offset 1)"""
-    offset_minutos = 1
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        quadrante_anterior = list(velas)[-6:-3]
-        calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls == 1: return ('CALL', 68)
-        elif puts == 1: return ('PUT', 68)
-        return None
+    def add_vela(self, open_price, close_price, high, low):
+        vela = [open_price, close_price, high, low]
+        self.velas.append(vela)
+        if len(self.velas) > 100:
+            self.velas.pop(0)
+        self._atualizar_quadrantes()
 
-class Vituxo2:
-    """VITUXO 2.0: maioria das 3 primeiras velas do quadrante anterior, entrada na 3ª vela (offset 2)"""
-    offset_minutos = 2
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        quadrante_anterior = list(velas)[-6:-3]  # 3 primeiras do quadrante anterior? VITUXO usa as 3 primeiras (índices 0,1,2 do quadrante)
-        # Para usar as 3 primeiras do quadrante anterior, precisamos pegar as posições -6, -5, -4
-        # No código original: quadrante_anterior = v[-6:-3] (pega índices -6,-5,-4) = 3 primeiras do quadrante anterior
-        # Então está correto: pega as 3 primeiras do quadrante anterior
-        calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls > puts:  # maioria verde -> CALL
-            return ('CALL', 70)
-        elif puts > calls:  # maioria vermelha -> PUT
-            return ('PUT', 70)
-        return None
+    def _atualizar_quadrantes(self):
+        if len(self.velas) >= 10:
+            self.quadrante_anterior = self.velas[-10:-5]
+            self.quadrante_atual = self.velas[-5:]
 
-class MilhaoMinoria:
-    """Milhão Minoria: minoria das 5 velas do quadrante anterior, entrada na 1ª vela (offset 0)"""
-    offset_minutos = 0
-    def analisar(self, velas):
-        if len(velas) < 11: return None
-        quadrante_anterior = list(velas)[-11:-6]  # 5 velas do quadrante anterior
-        calls = sum(1 for v in quadrante_anterior if v['close'] > v['open'])
-        puts = 5 - calls
-        if 0 < calls < puts: return ('CALL', 72)
-        elif 0 < puts < calls: return ('PUT', 72)
-        return None
+    def get_cor(self, vela):
+        if vela[1] > vela[0]: return 'up'
+        elif vela[1] < vela[0]: return 'down'
+        return 'doji'
 
-# ------------------------- CATALOGADOR INTELIGENTE -------------------------
+    def contar_cores(self, velas, posicoes=None):
+        if posicoes is None: posicoes = range(len(velas))
+        ups = sum(1 for i in posicoes if i < len(velas) and self.get_cor(velas[i]) == 'up')
+        downs = sum(1 for i in posicoes if i < len(velas) and self.get_cor(velas[i]) == 'down')
+        return ups, downs
+
+    def get_minoria(self, velas, posicoes=None):
+        ups, downs = self.contar_cores(velas, posicoes)
+        if ups < downs and ups > 0: return 'up'
+        elif downs < ups and downs > 0: return 'down'
+        return 'doji'
+
+    def get_maioria(self, velas, posicoes=None):
+        ups, downs = self.contar_cores(velas, posicoes)
+        if ups > downs: return 'up'
+        elif downs > ups: return 'down'
+        return 'doji'
+
+    # 12 quadrantes (com offset de entrada)
+    def mhi1(self):
+        if len(self.quadrante_anterior) < 3: return None
+        minoria = self.get_minoria(self.quadrante_anterior, [-3, -2, -1])
+        if minoria == 'doji': return None
+        return {'nome': 'MHI 1', 'direcao': 'CALL' if minoria == 'up' else 'PUT', 'offset': 0}
+
+    def mhi2(self):
+        if len(self.quadrante_anterior) < 3: return None
+        minoria = self.get_minoria(self.quadrante_anterior, [-3, -2, -1])
+        if minoria == 'doji': return None
+        return {'nome': 'MHI 2', 'direcao': 'CALL' if minoria == 'up' else 'PUT', 'offset': 1}
+
+    def mhi3(self):
+        if len(self.quadrante_anterior) < 3: return None
+        minoria = self.get_minoria(self.quadrante_anterior, [-3, -2, -1])
+        if minoria == 'doji': return None
+        return {'nome': 'MHI 3', 'direcao': 'CALL' if minoria == 'up' else 'PUT', 'offset': 2}
+
+    def vituxo2(self):
+        if len(self.quadrante_anterior) < 3: return None
+        maioria = self.get_maioria(self.quadrante_anterior, [0, 1, 2])
+        if maioria == 'doji': return None
+        return {'nome': 'VITUXO 2.0', 'direcao': 'CALL' if maioria == 'up' else 'PUT', 'offset': 2}
+
+    def c3(self):
+        if len(self.quadrante_anterior) < 1: return None
+        cor = self.get_cor(self.quadrante_anterior[0])
+        if cor == 'doji': return None
+        return {'nome': 'C3', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'offset': 0}
+
+    def msf(self):
+        if len(self.quadrante_anterior) < 1: return None
+        cor = self.get_cor(self.quadrante_anterior[0])
+        if cor == 'doji': return None
+        direcao = 'PUT' if cor == 'up' else 'CALL'
+        return {'nome': 'MSF', 'direcao': direcao, 'offset': 4}
+
+    def milhao_maioria(self):
+        if len(self.quadrante_anterior) < 5: return None
+        maioria = self.get_maioria(self.quadrante_anterior)
+        if maioria == 'doji': return None
+        return {'nome': 'Milhão (Maioria)', 'direcao': 'CALL' if maioria == 'up' else 'PUT', 'offset': 0}
+
+    def milhao_minoria(self):
+        if len(self.quadrante_anterior) < 5: return None
+        minoria = self.get_minoria(self.quadrante_anterior)
+        if minoria == 'doji': return None
+        return {'nome': 'Milhão (Minoria)', 'direcao': 'CALL' if minoria == 'up' else 'PUT', 'offset': 0}
+
+    def tres_vizinhos(self):
+        if len(self.quadrante_atual) < 4: return None
+        cor = self.get_cor(self.quadrante_atual[3])
+        if cor == 'doji': return None
+        return {'nome': '3 Vizinhos', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'offset': 4}
+
+    def daka(self):
+        if len(self.quadrante_anterior) < 4: return None
+        cor = self.get_cor(self.quadrante_anterior[3])
+        if cor == 'doji': return None
+        return {'nome': 'DAKA', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'offset': 0}
+
+    def estrategia_23(self):
+        if len(self.quadrante_atual) < 1: return None
+        cor = self.get_cor(self.quadrante_atual[0])
+        if cor == 'doji': return None
+        return {'nome': '23', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'offset': 1}
+
+    def r7(self):
+        if len(self.quadrante_anterior) < 8: return None
+        cor = self.get_cor(self.quadrante_anterior[7])
+        if cor == 'doji': return None
+        return {'nome': 'R7', 'direcao': 'CALL' if cor == 'up' else 'PUT', 'offset': 6}
+
+    # 5-2-0 e Chinesa 3.0 (não baseadas em quadrante, entrada no próximo minuto)
+    def estrategia_520(self, v):
+        try:
+            if len(v) < 25: return None
+            precos = [x['close'] for x in v]
+            mm5 = np.mean(precos[-5:])
+            media20 = np.mean(precos[-20:])
+            std20 = np.std(precos[-20:])
+            bs = media20 + 2*std20
+            bi = media20 - 2*std20
+            atual = precos[-1]
+            if atual > mm5 and atual <= bi*1.002: return {'nome': '5-2-0', 'direcao': 'CALL', 'offset': None}
+            if atual < mm5 and atual >= bs*0.998: return {'nome': '5-2-0', 'direcao': 'PUT', 'offset': None}
+            return None
+        except: return None
+
+    def chinesa_30(self, v):
+        try:
+            if len(v) < 30: return None
+            precos = [x['close'] for x in v]
+            ma20 = np.mean(precos[-20:])
+            suporte = min(x['low'] for x in v[-10:])
+            resistencia = max(x['high'] for x in v[-10:])
+            atual = precos[-1]
+            if atual > ma20 and v[-1]['high'] > resistencia: return {'nome': 'Chinesa 3.0', 'direcao': 'CALL', 'offset': None}
+            if atual < ma20 and v[-1]['low'] < suporte: return {'nome': 'Chinesa 3.0', 'direcao': 'PUT', 'offset': None}
+            return None
+        except: return None
+
+    def executar_todas(self):
+        sinais = []
+        estrategias = [
+            ('MHI 1', self.mhi1), ('MHI 2', self.mhi2), ('MHI 3', self.mhi3),
+            ('VITUXO 2.0', self.vituxo2), ('C3', self.c3), ('MSF', self.msf),
+            ('Milhão (Maioria)', self.milhao_maioria), ('Milhão (Minoria)', self.milhao_minoria),
+            ('3 Vizinhos', self.tres_vizinhos), ('DAKA', self.daka),
+            ('23', self.estrategia_23), ('R7', self.r7)
+        ]
+        for nome, func in estrategias:
+            try:
+                res = func()
+                if res:
+                    res['nome'] = nome
+                    sinais.append(res)
+            except: pass
+        return sinais
+
+# ------------------------- CATALOGADOR -------------------------
 class Catalogador:
     def __init__(self):
         self.performance = {}
@@ -119,27 +228,13 @@ class Catalogador:
             self.performance[chave]['losses'] += 1
         self.total_operacoes += 1
 
-    def get_taxa(self, estrategia, par):
-        chave = f"{estrategia}|{par}"
-        p = self.performance.get(chave)
-        if p:
-            total = p['wins'] + p['losses']
-            if total > 0:
-                return round((p['wins'] / total) * 100, 1)
-        return 0
-
     def escolher_melhor(self, min_ops=3):
         melhores = []
         for chave, p in self.performance.items():
             total = p['wins'] + p['losses']
             if total >= min_ops:
                 taxa = (p['wins'] / total) * 100
-                melhores.append({
-                    'estrategia': p['estrategia'],
-                    'par': p['par'],
-                    'taxa': taxa,
-                    'total': total
-                })
+                melhores.append({'estrategia': p['estrategia'], 'par': p['par'], 'taxa': taxa, 'total': total})
         melhores.sort(key=lambda x: x['taxa'], reverse=True)
         return melhores[0] if melhores else None
 
@@ -154,16 +249,11 @@ class Catalogador:
         return msg
 
 # ------------------------- BOT -------------------------
-class BotSimples:
+class BotProSinais:
     def __init__(self):
         self.tg = Telegram(TOKEN, CHAT)
         self.velas = {nome: deque(maxlen=100) for nome in ATIVOS_OTC}
-        self.estrategias = [
-            ('MHI 1', MHI1()),
-            ('MHI 2', MHI2()),
-            ('VITUXO 2.0', Vituxo2()),
-            ('Milhão Minoria', MilhaoMinoria())
-        ]
+        self.estrategias_quadrantes = EstrategiasM1()
         self.catalogador = Catalogador()
         self.placar = {'w': 0, 'g1': 0, 'l': 0}
         self.ult_sinal = 0
@@ -215,45 +305,91 @@ class BotSimples:
                     if "Expecting value" in str(e): self.conectar_iq()
 
     def buscar_sinal(self):
+        # Filtro de horário simples
         hora = datetime.now(FUSO_BR).hour
         if 22 <= hora or hora < 6:
             return None
 
-        # Tenta usar a melhor combinação do catálogo, se houver
+        # Tenta usar a melhor combinação do catálogo
         melhor = self.catalogador.escolher_melhor(3)
         if melhor:
             par = melhor['par']
             if par in self.velas and len(self.velas[par]) >= 11:
-                for nome_est, est in self.estrategias:
+                # Preenche as velas para as estratégias de quadrante
+                self.estrategias_quadrantes.velas = []
+                for v in self.velas[par]:
+                    self.estrategias_quadrantes.add_vela(v['open'], v['close'], v['high'], v['low'])
+                # Verifica apenas a estratégia do catálogo
+                for nome_est, func in self._get_estrategia_functions():
                     if nome_est == melhor['estrategia']:
-                        resultado = est.analisar(self.velas[par])
-                        if resultado:
-                            direcao, conf = resultado
-                            return {'ativo': par, 'direcao': direcao, 'confianca': conf,
-                                    'estrategia': nome_est, 'offset': est.offset_minutos}
-        # Varredura geral
+                        res = func()
+                        if res:
+                            return {'ativo': par, 'direcao': res['direcao'],
+                                    'confianca': 70, 'estrategia': nome_est,
+                                    'offset': res['offset']}
+                # Se não gerou sinal, cai para varredura geral
+
+        # Varredura geral por todos os pares e estratégias
         for par, velas in self.velas.items():
-            if len(velas) < 11: continue
-            for nome_est, est in self.estrategias:
-                resultado = est.analisar(velas)
-                if resultado:
-                    direcao, conf = resultado
-                    return {'ativo': par, 'direcao': direcao, 'confianca': conf,
-                            'estrategia': nome_est, 'offset': est.offset_minutos}
+            if len(velas) < 30: continue
+            self.estrategias_quadrantes.velas = []
+            for v in velas:
+                self.estrategias_quadrantes.add_vela(v['open'], v['close'], v['high'], v['low'])
+            # Estratégias de quadrante
+            for res in self.estrategias_quadrantes.executar_todas():
+                return {'ativo': par, 'direcao': res['direcao'],
+                        'confianca': 70, 'estrategia': res['nome'],
+                        'offset': res['offset']}
+            # 5-2-0 e Chinesa
+            res520 = self.estrategias_quadrantes.estrategia_520(velas)
+            if res520:
+                return {'ativo': par, 'direcao': res520['direcao'],
+                        'confianca': 75, 'estrategia': '5-2-0',
+                        'offset': None}
+            resch = self.estrategias_quadrantes.chinesa_30(velas)
+            if resch:
+                return {'ativo': par, 'direcao': resch['direcao'],
+                        'confianca': 80, 'estrategia': 'Chinesa 3.0',
+                        'offset': None}
         return None
 
+    def _get_estrategia_functions(self):
+        return [
+            ('MHI 1', self.estrategias_quadrantes.mhi1),
+            ('MHI 2', self.estrategias_quadrantes.mhi2),
+            ('MHI 3', self.estrategias_quadrantes.mhi3),
+            ('VITUXO 2.0', self.estrategias_quadrantes.vituxo2),
+            ('C3', self.estrategias_quadrantes.c3),
+            ('MSF', self.estrategias_quadrantes.msf),
+            ('Milhão (Maioria)', self.estrategias_quadrantes.milhao_maioria),
+            ('Milhão (Minoria)', self.estrategias_quadrantes.milhao_minoria),
+            ('3 Vizinhos', self.estrategias_quadrantes.tres_vizinhos),
+            ('DAKA', self.estrategias_quadrantes.daka),
+            ('23', self.estrategias_quadrantes.estrategia_23),
+            ('R7', self.estrategias_quadrantes.r7)
+        ]
+
     def calcular_horario_entrada(self, offset):
+        """
+        Calcula o horário de entrada correto.
+        offset = 0..4 -> vela do quadrante atual (0=primeira, 1=segunda, etc.)
+        offset = None -> próximo minuto cheio (para 5-2-0 e Chinesa)
+        """
         agora = datetime.now(FUSO_BR)
         if offset is None:
             return agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
+
         minuto = agora.minute
         resto = minuto % 5
         if resto == 0 and agora.second == 0:
             base = agora.replace(second=0, microsecond=0)
         else:
             base = agora.replace(second=0, microsecond=0) + timedelta(minutes=5 - resto)
+
+        # Garante que offset não ultrapasse 4
         offset = min(offset, 4)
-        return base + timedelta(minutes=offset)
+        horario = base + timedelta(minutes=offset)
+        return horario
 
     async def monitorar_resultado(self, sinal, horario_entrada):
         ativo = sinal['ativo']
@@ -261,6 +397,7 @@ class BotSimples:
         estrategia = sinal['estrategia']
         confianca = sinal['confianca']
 
+        # Aguarda fechamento da vela de entrada
         agora = datetime.now(FUSO_BR)
         espera = (horario_entrada + timedelta(minutes=1) - agora).total_seconds()
         if espera > 0:
@@ -281,6 +418,7 @@ class BotSimples:
             self.catalogador.registrar(estrategia, ativo, True)
         else:
             if USAR_GALE:
+                # Gale 1: vela seguinte
                 proxima_vela = horario_entrada + timedelta(minutes=1)
                 agora = datetime.now(FUSO_BR)
                 espera = (proxima_vela + timedelta(minutes=1) - agora).total_seconds()
@@ -320,8 +458,8 @@ class BotSimples:
 
     async def executar(self):
         banner()
-        print("⚛️ Bot Simples iniciando...")
-        self.tg.send("🔥 *QUANTUM SIMPLES ATIVADO*\n📊 Estratégias: MHI 1, MHI 2, VITUXO 2.0, Milhão Minoria\n🛡️ Filtro: Horário\n🧠 Catálogo automático da melhor combinação\n⏱️ Horários de entrada corretos")
+        print("⚛️ Bot Pro 14 estratégias iniciando...")
+        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | Horários corretos\n🧠 Catálogo inteligente\n⏱️ Sinais a cada 5min | Gale 1")
         while True:
             try:
                 await self.atualizar_velas()
@@ -331,7 +469,7 @@ class BotSimples:
                     horario_entrada = self.calcular_horario_entrada(sinal['offset'])
                     he = horario_entrada.strftime('%H:%M')
                     emoji = '🟢' if sinal['direcao']=='CALL' else '🔴'
-                    msg_sinal = f"""⚛️ SINAL SIMPLES ⚛️
+                    msg_sinal = f"""⚛️ SINAL QUANTUM PRO ⚛️
 
 ⏰ Horário: {he}
 💰 Ativo: {sinal['ativo']}-OTC
@@ -353,5 +491,5 @@ class BotSimples:
                 await asyncio.sleep(10)
 
 if __name__ == "__main__":
-    bot = BotSimples()
+    bot = BotProSinais()
     asyncio.run(bot.executar())
