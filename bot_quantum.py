@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) + HORÁRIOS CORRETOS
+⚛️ QUANTUM BOT PRO - SINAIS TELEGRAM (14 ESTRATÉGIAS) + CATÁLOGO REAVALIADO
 🕯️ 12 Quadrantes + 5-2-0 + Chinesa 3.0
-🛡️ Filtros opcionais: Pavio, Vela Forte, Horário (sem filtros de tendência)
-🧠 Catalogador inteligente
+🛡️ Filtro de horário (evita madrugada)
+🧠 Catálogo inteligente: reavaliado a cada 2 sinais
 📨 Sinal + resultado (com gale 1) via Telegram
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -17,10 +17,10 @@ FUSO_BR = timezone(timedelta(hours=-3))
 # Configurações
 INTERVALO_MINIMO = 300       # 5 min entre sinais
 USAR_GALE = True             # Simula gale 1 (correção com duas velas)
-CONFIANCA_MINIMA = 0         # Não usado (estratégias retornam confiança fixa)
+OPERACOES_POR_CICLO = 2      # Reavaliar catálogo a cada 2 sinais
 
 def banner():
-    print("⚛️ QUANTUM BOT PRO - 14 Estratégias | Horários Corretos | Catálogo")
+    print("⚛️ QUANTUM BOT PRO - 14 Estratégias | Catálogo Reavaliado | Horários Corretos")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -228,13 +228,19 @@ class Catalogador:
             self.performance[chave]['losses'] += 1
         self.total_operacoes += 1
 
-    def escolher_melhor(self, min_ops=3):
+    def escolher_melhor(self, min_ops=1):
+        """Retorna a melhor combinação (estratégia, par) com pelo menos min_ops operações"""
         melhores = []
         for chave, p in self.performance.items():
             total = p['wins'] + p['losses']
             if total >= min_ops:
                 taxa = (p['wins'] / total) * 100
-                melhores.append({'estrategia': p['estrategia'], 'par': p['par'], 'taxa': taxa, 'total': total})
+                melhores.append({
+                    'estrategia': p['estrategia'],
+                    'par': p['par'],
+                    'taxa': taxa,
+                    'total': total
+                })
         melhores.sort(key=lambda x: x['taxa'], reverse=True)
         return melhores[0] if melhores else None
 
@@ -258,6 +264,17 @@ class BotProSinais:
         self.placar = {'w': 0, 'g1': 0, 'l': 0}
         self.ult_sinal = 0
         self.iq_api = None
+        self.melhor_combinacao = None  # guarda a melhor combinação atual
+        self.operacoes_no_ciclo = 0    # contador de operações desde a última reavaliação
+
+    def reavaliar_catalogo(self):
+        """Reescolhe a melhor combinação (estratégia, par) do catálogo."""
+        melhor = self.catalogador.escolher_melhor(min_ops=1)
+        if melhor:
+            self.melhor_combinacao = melhor
+            print(f"🔄 Catálogo reavaliado: {melhor['estrategia']} em {melhor['par']} (taxa {melhor['taxa']}%)")
+        else:
+            self.melhor_combinacao = None
 
     def conectar_iq(self):
         from iqoptionapi.stable_api import IQ_Option
@@ -305,30 +322,36 @@ class BotProSinais:
                     if "Expecting value" in str(e): self.conectar_iq()
 
     def buscar_sinal(self):
-        # Filtro de horário simples
         hora = datetime.now(FUSO_BR).hour
         if 22 <= hora or hora < 6:
             return None
 
-        # Tenta usar a melhor combinação do catálogo
-        melhor = self.catalogador.escolher_melhor(3)
-        if melhor:
-            par = melhor['par']
-            if par in self.velas and len(self.velas[par]) >= 11:
+        # Prioriza a melhor combinação do catálogo (se houver)
+        if self.melhor_combinacao:
+            par_alvo = self.melhor_combinacao['par']
+            est_alvo = self.melhor_combinacao['estrategia']
+            if par_alvo in self.velas and len(self.velas[par_alvo]) >= 11:
                 # Preenche as velas para as estratégias de quadrante
                 self.estrategias_quadrantes.velas = []
-                for v in self.velas[par]:
+                for v in self.velas[par_alvo]:
                     self.estrategias_quadrantes.add_vela(v['open'], v['close'], v['high'], v['low'])
-                # Verifica apenas a estratégia do catálogo
+                # Verifica apenas a estratégia alvo
                 for nome_est, func in self._get_estrategia_functions():
-                    if nome_est == melhor['estrategia']:
+                    if nome_est == est_alvo:
                         res = func()
                         if res:
-                            return {'ativo': par, 'direcao': res['direcao'],
+                            return {'ativo': par_alvo, 'direcao': res['direcao'],
                                     'confianca': 70, 'estrategia': nome_est,
                                     'offset': res['offset']}
-                # Se não gerou sinal, cai para varredura geral
-
+                # Se a estratégia alvo não gerou sinal, tenta 5-2-0 e Chinesa no mesmo par
+                res520 = self.estrategias_quadrantes.estrategia_520(self.velas[par_alvo])
+                if res520:
+                    return {'ativo': par_alvo, 'direcao': res520['direcao'],
+                            'confianca': 75, 'estrategia': '5-2-0', 'offset': None}
+                resch = self.estrategias_quadrantes.chinesa_30(self.velas[par_alvo])
+                if resch:
+                    return {'ativo': par_alvo, 'direcao': resch['direcao'],
+                            'confianca': 80, 'estrategia': 'Chinesa 3.0', 'offset': None}
         # Varredura geral por todos os pares e estratégias
         for par, velas in self.velas.items():
             if len(velas) < 30: continue
@@ -370,26 +393,17 @@ class BotProSinais:
         ]
 
     def calcular_horario_entrada(self, offset):
-        """
-        Calcula o horário de entrada correto.
-        offset = 0..4 -> vela do quadrante atual (0=primeira, 1=segunda, etc.)
-        offset = None -> próximo minuto cheio (para 5-2-0 e Chinesa)
-        """
         agora = datetime.now(FUSO_BR)
         if offset is None:
             return agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
-
         minuto = agora.minute
         resto = minuto % 5
         if resto == 0 and agora.second == 0:
             base = agora.replace(second=0, microsecond=0)
         else:
             base = agora.replace(second=0, microsecond=0) + timedelta(minutes=5 - resto)
-
-        # Garante que offset não ultrapasse 4
         offset = min(offset, 4)
-        horario = base + timedelta(minutes=offset)
-        return horario
+        return base + timedelta(minutes=offset)
 
     async def monitorar_resultado(self, sinal, horario_entrada):
         ativo = sinal['ativo']
@@ -397,7 +411,6 @@ class BotProSinais:
         estrategia = sinal['estrategia']
         confianca = sinal['confianca']
 
-        # Aguarda fechamento da vela de entrada
         agora = datetime.now(FUSO_BR)
         espera = (horario_entrada + timedelta(minutes=1) - agora).total_seconds()
         if espera > 0:
@@ -418,7 +431,6 @@ class BotProSinais:
             self.catalogador.registrar(estrategia, ativo, True)
         else:
             if USAR_GALE:
-                # Gale 1: vela seguinte
                 proxima_vela = horario_entrada + timedelta(minutes=1)
                 agora = datetime.now(FUSO_BR)
                 espera = (proxima_vela + timedelta(minutes=1) - agora).total_seconds()
@@ -445,6 +457,12 @@ class BotProSinais:
                 resultado = "❌ LOSS"
                 self.catalogador.registrar(estrategia, ativo, False)
 
+        # Incrementa contador de ciclo e reavalia se necessário
+        self.operacoes_no_ciclo += 1
+        if self.operacoes_no_ciclo >= OPERACOES_POR_CICLO:
+            self.reavaliar_catalogo()
+            self.operacoes_no_ciclo = 0
+
         total = self.placar['w'] + self.placar['g1'] + self.placar['l']
         tx = round(((self.placar['w'] + self.placar['g1']) / total) * 100, 1) if total > 0 else 0.0
         msg = f"""{resultado}
@@ -459,7 +477,7 @@ class BotProSinais:
     async def executar(self):
         banner()
         print("⚛️ Bot Pro 14 estratégias iniciando...")
-        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | Horários corretos\n🧠 Catálogo inteligente\n⏱️ Sinais a cada 5min | Gale 1")
+        self.tg.send("🔥 *QUANTUM BOT PRO ATIVADO*\n📊 14 Estratégias | Horários corretos\n🧠 Catálogo reavaliado a cada 2 sinais\n⏱️ Sinais a cada 5min | Gale 1")
         while True:
             try:
                 await self.atualizar_velas()
