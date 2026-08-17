@@ -1,1 +1,1 @@
-worker: python bot_dual.py
+worker: python bot_quantum.py
