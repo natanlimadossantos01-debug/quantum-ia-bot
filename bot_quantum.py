@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM IA M1 - COM PLACAR DIÁRIO E CONSENSO DE ESTRATÉGIAS
-🕯️ Estratégias: MHI 1, MHI 2, VITUXO 2.0, Milhão Minoria, C3
-🎯 Sinal somente com consenso de 2+ estratégias e confiança >= 70%
-🛡️ Filtro de horário e pavio
-🔄 Zeramento automático do placar às 23:59
+⚛️ QUANTUM IA M1 - 5 ESTRATÉGIAS COM CONFLUÊNCIA E VOLATILIDADE
+🕯️ Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami
+🎯 Confluência de 2+ estratégias + tendência SMA20 + pavio 50%
+📊 Filtro de volatilidade (ATR 14) entre limites
+🔄 Placar diário automático
 """
-import asyncio, time, requests, numpy as np, signal, sys, json, os
+import asyncio, time, requests, numpy as np, signal, sys, json, os, random
 from datetime import datetime, timedelta, timezone
 from collections import deque, defaultdict
 from pathlib import Path
@@ -18,10 +18,14 @@ FUSO_BR = timezone(timedelta(hours=-3))
 INTERVALO_MINIMO = 300       # 5 min entre sinais
 USAR_GALE = True
 ANTECEDENCIA = 30            # segundos antes da entrada
-CONFIANCA_MINIMA = 70        # confiança mínima
+CONFIANCA_MINIMA = 65        # confiança mínima
+
+# Volatilidade
+ATR_MIN = 0.0002
+ATR_MAX = 0.0015
 
 def banner():
-    print("⚛️ QUANTUM IA M1 - Placar Diário | Consenso de Estratégias")
+    print("⚛️ QUANTUM IA M1 - 5 Estratégias | Confluência + Volatilidade")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -50,71 +54,136 @@ class Telegram:
         try: requests.post(f"{self.url}/sendMessage", json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, timeout=10)
         except: pass
 
-# Estratégias (5)
-class MHI1:
-    offset = 0
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        q = list(velas)[-6:-3]
-        calls = sum(1 for v in q if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls == 1: return ('CALL', 70)
-        elif puts == 1: return ('PUT', 70)
-        return None
+# ==================== 5 ESTRATÉGIAS ====================
+class Mortalha:
+    def sma(self, d, p):
+        try:
+            if len(d) >= p: return sum(d[-p:])/p
+            return sum(d)/len(d) if d else 0
+        except: return 0
+    def wma(self, d, p):
+        try:
+            if len(d) < p: return sum(d)/len(d) if d else 0
+            w = np.arange(1, p+1)
+            return np.sum(np.array(d[-p:])*w)/np.sum(w)
+        except: return 0
+    def analisar(self, v):
+        try:
+            if len(v) < 30: return None, 0
+            c = np.array([x['close'] for x in v])
+            b1 = np.zeros(len(c))
+            for i in range(len(c)):
+                if i >= 33: b1[i] = self.sma(c[:i+1], 1) - self.sma(c[:i+1], 34)
+            b2 = np.zeros(len(b1))
+            for i in range(len(b1)):
+                if i >= 3: b2[i] = self.wma(b1[:i+1], 4)
+            if b1[-1] > b2[-1] and b1[-2] <= b2[-2]: return 'CALL', min(45+abs(b1[-1]-b2[-1])*10000, 90)
+            if b1[-1] < b2[-1] and b1[-2] >= b2[-2]: return 'PUT', min(45+abs(b1[-1]-b2[-1])*10000, 90)
+            return None, 0
+        except: return None, 0
 
-class MHI2:
-    offset = 1
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        q = list(velas)[-6:-3]
-        calls = sum(1 for v in q if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls == 1: return ('CALL', 68)
-        elif puts == 1: return ('PUT', 68)
-        return None
+class Formiga:
+    def ema(self, p, pe):
+        try:
+            if len(p) < pe: return sum(p)/len(p) if p else 0
+            return np.mean(p[-pe:])
+        except: return 0
+    def analisar(self, v):
+        try:
+            if len(v) < 15: return None, 0
+            precos = np.array([x['close'] for x in v])
+            ema5 = self.ema(precos, 5); ema10 = self.ema(precos, 10)
+            dif = ((ema5-ema10)/ema10)*100 if ema10 > 0 else 0
+            sc, sp = 0, 0
+            if dif > 0.02: sc += 3
+            elif dif > 0.005: sc += 1
+            elif dif < -0.02: sp += 3
+            elif dif < -0.005: sp += 1
+            if sc >= 2 and sc > sp: return 'CALL', min(50+sc*4, 85)
+            if sp >= 2 and sp > sc: return 'PUT', min(50+sp*4, 85)
+            return None, 0
+        except: return None, 0
 
-class Vituxo2:
-    offset = 2
-    def analisar(self, velas):
-        if len(velas) < 10: return None
-        q = list(velas)[-6:-3]
-        calls = sum(1 for v in q if v['close'] > v['open'])
-        puts = 3 - calls
-        if calls > puts: return ('CALL', 70)
-        elif puts > calls: return ('PUT', 70)
-        return None
+class Fortaleza:
+    def rsi(self, p, pe=7):
+        try:
+            if len(p) < pe+1: return 50
+            d = np.diff(list(p[-pe-1:]))
+            g = np.where(d > 0, d, 0); l = np.where(d < 0, -d, 0)
+            mg = np.mean(g) if len(g) > 0 else 0
+            mp = np.mean(l) if len(l) > 0 else 0
+            if mp == 0: return 100
+            return 100 - (100/(1+mg/mp))
+        except: return 50
+    def analisar(self, v):
+        try:
+            if len(v) < 18: return None, 0
+            precos = np.array([x['close'] for x in v])
+            rsi_val = self.rsi(precos)
+            m = np.mean(precos[-10:]) if len(precos) >= 10 else np.mean(precos)
+            s = np.std(precos[-10:]) if len(precos) >= 10 else 0
+            bs = m + 2*s; bi = m - 2*s
+            sc, sp = 0, 0
+            if rsi_val < 30: sc += 3
+            elif rsi_val < 40: sc += 2
+            if rsi_val > 70: sp += 3
+            elif rsi_val > 60: sp += 2
+            if precos[-1] <= bi*1.0004: sc += 3
+            if precos[-1] >= bs*0.9996: sp += 3
+            if sc >= 4 and sc > sp: return 'CALL', min(60+sc*3, 90)
+            if sp >= 4 and sp > sc: return 'PUT', min(60+sp*3, 90)
+            return None, 0
+        except: return None, 0
 
-class MilhaoMinoria:
-    offset = 0
-    def analisar(self, velas):
-        if len(velas) < 11: return None
-        q = list(velas)[-11:-6]
-        calls = sum(1 for v in q if v['close'] > v['open'])
-        puts = 5 - calls
-        if 0 < calls < puts: return ('CALL', 72)
-        elif 0 < puts < calls: return ('PUT', 72)
-        return None
+class RaioNegro:
+    def analisar(self, v):
+        try:
+            if len(v) < 12: return None, 0
+            precos = np.array([x['close'] for x in v])
+            ema5 = np.mean(precos[-5:])
+            ema13 = np.mean(precos[-13:])
+            macd = ema5 - ema13
+            sinal = macd * 0.5
+            mom = precos[-1] - precos[-3] if len(precos) >= 3 else 0
+            sc, sp = 0, 0
+            if macd > sinal and macd > 0: sc += 3
+            elif macd > sinal: sc += 1
+            elif macd < sinal and macd < 0: sp += 3
+            elif macd < sinal: sp += 1
+            if mom > 0.00003: sc += 3
+            elif mom > 0: sc += 1
+            elif mom < -0.00003: sp += 3
+            elif mom < 0: sp += 1
+            if sc >= 2 and sc > sp: return 'CALL', min(48+sc*4, 85)
+            if sp >= 2 and sp > sc: return 'PUT', min(48+sp*4, 85)
+            return None, 0
+        except: return None, 0
 
-class C3:
-    offset = 0
-    def analisar(self, velas):
-        if len(velas) < 7: return None
-        ref = velas[-6]
-        if ref['close'] > ref['open']: return ('CALL', 65)
-        elif ref['close'] < ref['open']: return ('PUT', 65)
-        return None
+class Tsunami:
+    def analisar(self, v):
+        try:
+            if len(v) < 12: return None, 0
+            precos = [x['close'] for x in v]
+            altas = sum(1 for i in range(-min(5,len(v)-1), 0) if precos[i] > precos[i-1])
+            sc, sp = 0, 0
+            if altas >= 3: sc += 3
+            elif altas <= 2: sp += 3
+            if sc >= 2 and sc > sp: return 'CALL', min(50+sc*3, 85)
+            if sp >= 2 and sp > sc: return 'PUT', min(50+sp*3, 85)
+            return None, 0
+        except: return None, 0
 
-# Bot
+# ==================== BOT ====================
 class BotM1:
     def __init__(self):
         self.tg = Telegram(TOKEN, CHAT)
         self.velas = {nome: deque(maxlen=100) for nome in ATIVOS_OTC}
         self.estrategias = [
-            ('MHI 1', MHI1()),
-            ('MHI 2', MHI2()),
-            ('VITUXO 2.0', Vituxo2()),
-            ('Milhão Minoria', MilhaoMinoria()),
-            ('C3', C3())
+            ('💀 Mortalha', Mortalha()),
+            ('🐜 Formiga', Formiga()),
+            ('🏰 Fortaleza', Fortaleza()),
+            ('⚡ Raio Negro', RaioNegro()),
+            ('🌊 Tsunami', Tsunami())
         ]
         self.iq_api = None
         self.placar = {'w': 0, 'g1': 0, 'l': 0}
@@ -181,14 +250,32 @@ class BotM1:
                         if not api:
                             break
 
-    def buscar_sinal_consenso(self):
-        hora = datetime.now(FUSO_BR).hour
-        if hora < 8 or hora > 17:
+    def calcular_atr(self, velas, periodo=14):
+        if len(velas) < periodo + 1:
             return None
+        trs = []
+        for i in range(-periodo, 0):
+            h = velas[i]['high']
+            l = velas[i]['low']
+            c_prev = velas[i-1]['close'] if i > -periodo else velas[i]['open']
+            tr = max(h - l, abs(h - c_prev), abs(l - c_prev))
+            trs.append(tr)
+        return np.mean(trs)
 
+    def buscar_sinal_consenso(self):
         for par, velas in self.velas.items():
             if len(velas) < 30:
                 continue
+
+            # Filtro de volatilidade
+            atr = self.calcular_atr(velas, 14)
+            if atr is None or atr < ATR_MIN or atr > ATR_MAX:
+                continue
+
+            precos = [v['close'] for v in velas]
+            sma20 = sum(precos[-20:]) / 20
+            atual = precos[-1]
+
             votos_call = []
             votos_put = []
             for nome_est, est in self.estrategias:
@@ -201,8 +288,8 @@ class BotM1:
                         else:
                             votos_put.append(conf)
 
-            # Precisa de pelo menos 2 votos na mesma direção
-            if len(votos_call) >= 2:
+            # Confluência de 2+ estratégias
+            if len(votos_call) >= 2 and atual > sma20:
                 conf_media = sum(votos_call) / len(votos_call)
                 vela = velas[-1]
                 corpo = abs(vela['close'] - vela['open'])
@@ -212,7 +299,7 @@ class BotM1:
                         continue
                 return {'ativo': par, 'direcao': 'CALL', 'confianca': conf_media}
 
-            if len(votos_put) >= 2:
+            if len(votos_put) >= 2 and atual < sma20:
                 conf_media = sum(votos_put) / len(votos_put)
                 vela = velas[-1]
                 corpo = abs(vela['close'] - vela['open'])
@@ -306,8 +393,8 @@ class BotM1:
 
     async def executar(self):
         banner()
-        print("⚛️ Bot M1 com consenso iniciando...")
-        self.tg.send("🔥 *QUANTUM IA M1 ATIVADO*\n📊 Consenso de 2+ estratégias\n🛡️ Filtros: horário, pavio, confiança\n🔄 Placar diário automático")
+        print("⚛️ Bot M1 com 5 estratégias iniciando...")
+        self.tg.send("🔥 *QUANTUM IA M1 ATIVADO*\n📊 5 Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami\n🎯 Confluência de 2+ estratégias\n📊 Filtro de volatilidade\n🔄 Placar diário automático")
         while True:
             try:
                 self.verificar_zeramento_diario()
