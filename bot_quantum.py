@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM IA M1 - 5 ESTRATÉGIAS COM CONFLUÊNCIA E VOLATILIDADE
+⚛️ QUANTUM IA M5 - OTC COM 10 PARES
 🕯️ Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami
 🎯 Confluência de 2+ estratégias + tendência SMA20 + pavio 50%
-📊 Filtro de volatilidade (ATR 14) entre limites
+📊 Filtro de volatilidade (ATR 14)
 🔄 Placar diário automático
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
@@ -15,17 +15,17 @@ signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # Configurações
-INTERVALO_MINIMO = 300       # 5 min entre sinais
+INTERVALO_MINIMO = 600       # 10 min entre sinais
 USAR_GALE = True
 ANTECEDENCIA = 30            # segundos antes da entrada
 CONFIANCA_MINIMA = 65        # confiança mínima
 
-# Volatilidade
+# Volatilidade ATR (calibrado para OTC)
 ATR_MIN = 0.0002
 ATR_MAX = 0.0015
 
 def banner():
-    print("⚛️ QUANTUM IA M1 - 5 Estratégias | Confluência + Volatilidade")
+    print("⚛️ QUANTUM IA M5 - OTC 10 Pares | Confluência + Volatilidade")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -182,7 +182,7 @@ class Tsunami:
         except: return None, 0
 
 # ==================== BOT ====================
-class BotM1:
+class BotM5:
     def __init__(self):
         self.tg = Telegram(TOKEN, CHAT)
         self.velas = {nome: deque(maxlen=100) for nome in ATIVOS_OTC}
@@ -237,7 +237,7 @@ class BotM1:
                         api = await self.reconectar_se_necessario()
                         if not api:
                             break
-                    c = api.get_candles(ativo_id, 60, 80, time.time())
+                    c = api.get_candles(ativo_id, 300, 80, time.time())  # M5
                     if c and len(c) > 0:
                         self.velas[nome].clear()
                         for x in c[-80:]:
@@ -318,7 +318,12 @@ class BotM1:
 
     def calcular_horario_entrada(self):
         agora = datetime.now(FUSO_BR)
-        return agora.replace(second=0, microsecond=0) + timedelta(minutes=1)
+        minuto = agora.minute
+        resto = minuto % 5
+        if resto == 0 and agora.second == 0:
+            return agora.replace(second=0, microsecond=0)
+        else:
+            return agora.replace(second=0, microsecond=0) + timedelta(minutes=5 - resto)
 
     def formatar_sinal(self, sinal, horario):
         ativo = sinal['ativo']
@@ -326,8 +331,8 @@ class BotM1:
         hora = horario.strftime('%H:%M')
         return f"""🚨SINAL AO VIVO🚨
 
-✳️ QUANTUM IA M1 ✅
-⏲ EXPIRAÇÃO: M1
+✳️ QUANTUM IA M5 ✅
+⏲ EXPIRAÇÃO: M5
 
 👉🏼 HORARIO: {hora}
 
@@ -340,10 +345,10 @@ class BotM1:
         direcao = sinal['direcao']
 
         agora = datetime.now(FUSO_BR)
-        espera = (horario_entrada + timedelta(minutes=1) - agora).total_seconds()
+        espera = (horario_entrada + timedelta(minutes=5) - agora).total_seconds()
         if espera > 0:
             await asyncio.sleep(espera)
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         await self.atualizar_velas()
         velas = self.velas[ativo]
 
@@ -358,12 +363,12 @@ class BotM1:
             resultado = "✅ WIN"
         else:
             if USAR_GALE:
-                proxima_vela = horario_entrada + timedelta(minutes=1)
+                proxima_vela = horario_entrada + timedelta(minutes=5)
                 agora = datetime.now(FUSO_BR)
-                espera = (proxima_vela + timedelta(minutes=1) - agora).total_seconds()
+                espera = (proxima_vela + timedelta(minutes=5) - agora).total_seconds()
                 if espera > 0:
                     await asyncio.sleep(espera)
-                await asyncio.sleep(5)
+                await asyncio.sleep(10)
                 await self.atualizar_velas()
                 velas = self.velas[ativo]
                 ganhou_gale = False
@@ -399,8 +404,8 @@ class BotM1:
 
     async def executar(self):
         banner()
-        print("⚛️ Bot M1 com 5 estratégias iniciando...")
-        self.tg.send("🔥 *QUANTUM IA M1 ATIVADO*\n📊 5 Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami\n🎯 Confluência de 2+ estratégias\n📊 Filtro de volatilidade\n🔄 Placar diário automático")
+        print("⚛️ Bot M5 OTC iniciando...")
+        self.tg.send("🔥 *QUANTUM IA M5 OTC ATIVADO*\n📊 5 Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami\n🎯 Confluência de 2+ estratégias\n📊 10 pares OTC\n🔄 Placar diário automático")
         while True:
             try:
                 self.verificar_zeramento_diario()
@@ -426,5 +431,5 @@ class BotM1:
                 await asyncio.sleep(10)
 
 if __name__ == "__main__":
-    bot = BotM1()
+    bot = BotM5()
     asyncio.run(bot.executar())
