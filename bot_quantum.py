@@ -40,10 +40,18 @@ def carregar_config():
 cfg = carregar_config()
 TOKEN, CHAT = cfg['token'], cfg['chat']
 
+# 10 pares OTC
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
     "GBPUSD": "GBPUSD-OTC",
-    "EURJPY": "EURJPY-OTC"
+    "EURJPY": "EURJPY-OTC",
+    "USDJPY": "USDJPY-OTC",
+    "AUDUSD": "AUDUSD-OTC",
+    "USDCAD": "USDCAD-OTC",
+    "EURGBP": "EURGBP-OTC",
+    "GBPJPY": "GBPJPY-OTC",
+    "AUDJPY": "AUDJPY-OTC",
+    "EURAUD": "EURAUD-OTC"
 }
 
 class Telegram:
@@ -267,7 +275,6 @@ class BotM1:
             if len(velas) < 30:
                 continue
 
-            # Filtro de volatilidade
             atr = self.calcular_atr(velas, 14)
             if atr is None or atr < ATR_MIN or atr > ATR_MAX:
                 continue
@@ -288,7 +295,6 @@ class BotM1:
                         else:
                             votos_put.append(conf)
 
-            # Confluência de 2+ estratégias
             if len(votos_call) >= 2 and atual > sma20:
                 conf_media = sum(votos_call) / len(votos_call)
                 vela = velas[-1]
