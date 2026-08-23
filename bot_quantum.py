@@ -1,31 +1,29 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM IA M5 - OTC COM 10 PARES
+⚛️ QUANTUM IA M5 - OTC 4 PARES CONFIRMADOS
 🕯️ Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami
-🎯 Confluência de 2+ estratégias + tendência SMA20 + pavio 50%
-📊 Filtro de volatilidade (ATR 14)
-🔄 Placar diário automático
+🎯 Confluência de 2+ estratégias + volatilidade
 """
-import asyncio, time, requests, numpy as np, signal, sys, json, os, random
+import asyncio, time, requests, numpy as np, signal, sys, json, os
 from datetime import datetime, timedelta, timezone
-from collections import deque, defaultdict
+from collections import deque
 from pathlib import Path
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # Configurações
-INTERVALO_MINIMO = 600       # 10 min entre sinais
+INTERVALO_MINIMO = 600
 USAR_GALE = True
-ANTECEDENCIA = 30            # segundos antes da entrada
-CONFIANCA_MINIMA = 65        # confiança mínima
+ANTECEDENCIA = 30
+CONFIANCA_MINIMA = 65
 
-# Volatilidade ATR (calibrado para OTC)
+# Volatilidade
 ATR_MIN = 0.0002
 ATR_MAX = 0.0015
 
 def banner():
-    print("⚛️ QUANTUM IA M5 - OTC 10 Pares | Confluência + Volatilidade")
+    print("⚛️ QUANTUM IA M5 - OTC 4 Pares")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -40,18 +38,12 @@ def carregar_config():
 cfg = carregar_config()
 TOKEN, CHAT = cfg['token'], cfg['chat']
 
-# 10 pares OTC
+# Apenas 4 pares CONFIRMADOS
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
     "GBPUSD": "GBPUSD-OTC",
     "EURJPY": "EURJPY-OTC",
-    "USDJPY": "USDJPY-OTC",
-    "AUDUSD": "AUDUSD-OTC",
-    "USDCAD": "USDCAD-OTC",
-    "EURGBP": "EURGBP-OTC",
-    "GBPJPY": "GBPJPY-OTC",
-    "AUDJPY": "AUDJPY-OTC",
-    "EURAUD": "EURAUD-OTC"
+    "USDJPY": "USDJPY-OTC"
 }
 
 class Telegram:
@@ -62,7 +54,7 @@ class Telegram:
         try: requests.post(f"{self.url}/sendMessage", json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, timeout=10)
         except: pass
 
-# ==================== 5 ESTRATÉGIAS ====================
+# Estratégias
 class Mortalha:
     def sma(self, d, p):
         try:
@@ -181,7 +173,7 @@ class Tsunami:
             return None, 0
         except: return None, 0
 
-# ==================== BOT ====================
+# Bot
 class BotM5:
     def __init__(self):
         self.tg = Telegram(TOKEN, CHAT)
@@ -237,7 +229,7 @@ class BotM5:
                         api = await self.reconectar_se_necessario()
                         if not api:
                             break
-                    c = api.get_candles(ativo_id, 300, 80, time.time())  # M5
+                    c = api.get_candles(ativo_id, 300, 80, time.time())
                     if c and len(c) > 0:
                         self.velas[nome].clear()
                         for x in c[-80:]:
@@ -274,15 +266,12 @@ class BotM5:
         for par, velas in self.velas.items():
             if len(velas) < 30:
                 continue
-
             atr = self.calcular_atr(velas, 14)
             if atr is None or atr < ATR_MIN or atr > ATR_MAX:
                 continue
-
             precos = [v['close'] for v in velas]
             sma20 = sum(precos[-20:]) / 20
             atual = precos[-1]
-
             votos_call = []
             votos_put = []
             for nome_est, est in self.estrategias:
@@ -294,7 +283,6 @@ class BotM5:
                             votos_call.append(conf)
                         else:
                             votos_put.append(conf)
-
             if len(votos_call) >= 2 and atual > sma20:
                 conf_media = sum(votos_call) / len(votos_call)
                 vela = velas[-1]
@@ -304,7 +292,6 @@ class BotM5:
                     if pavio_sup > corpo * 0.5:
                         continue
                 return {'ativo': par, 'direcao': 'CALL', 'confianca': conf_media}
-
             if len(votos_put) >= 2 and atual < sma20:
                 conf_media = sum(votos_put) / len(votos_put)
                 vela = velas[-1]
@@ -343,7 +330,6 @@ class BotM5:
     async def monitorar_resultado(self, sinal, horario_entrada):
         ativo = sinal['ativo']
         direcao = sinal['direcao']
-
         agora = datetime.now(FUSO_BR)
         espera = (horario_entrada + timedelta(minutes=5) - agora).total_seconds()
         if espera > 0:
@@ -351,13 +337,11 @@ class BotM5:
         await asyncio.sleep(10)
         await self.atualizar_velas()
         velas = self.velas[ativo]
-
         ganhou = False
         for v in velas:
             if v['time'].replace(second=0, microsecond=0) == horario_entrada.replace(second=0, microsecond=0):
                 ganhou = v['close'] > v['open'] if direcao == 'CALL' else v['close'] < v['open']
                 break
-
         if ganhou:
             self.placar['w'] += 1
             resultado = "✅ WIN"
@@ -385,7 +369,6 @@ class BotM5:
             else:
                 self.placar['l'] += 1
                 resultado = "❌ LOSS"
-
         total = self.placar['w'] + self.placar['g1'] + self.placar['l']
         tx = round(((self.placar['w'] + self.placar['g1']) / total) * 100, 1) if total > 0 else 0.0
         msg = f"""{resultado}
@@ -405,7 +388,7 @@ class BotM5:
     async def executar(self):
         banner()
         print("⚛️ Bot M5 OTC iniciando...")
-        self.tg.send("🔥 *QUANTUM IA M5 OTC ATIVADO*\n📊 5 Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami\n🎯 Confluência de 2+ estratégias\n📊 10 pares OTC\n🔄 Placar diário automático")
+        self.tg.send("🔥 *QUANTUM IA M5 OTC ATIVADO*\n📊 5 Estratégias\n🎯 4 Pares Confirmados\n🔄 Placar diário automático")
         while True:
             try:
                 self.verificar_zeramento_diario()
