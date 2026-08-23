@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM IA M5 - OTC 4 PARES CONFIRMADOS
-🕯️ Estratégias: Mortalha, Formiga, Fortaleza, Raio Negro, Tsunami
-🎯 Confluência de 2+ estratégias + volatilidade
+⚛️ QUANTUM IA M5 - OTC 4 PARES - MODO FLEXÍVEL
+🎯 Confluência de 1+ estratégia (reduzido)
+📊 Sem filtro de volatilidade (removido)
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
 from datetime import datetime, timedelta, timezone
@@ -13,17 +13,13 @@ signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # Configurações
-INTERVALO_MINIMO = 600
+INTERVALO_MINIMO = 300       # 5 min entre sinais (reduzido)
 USAR_GALE = True
 ANTECEDENCIA = 30
-CONFIANCA_MINIMA = 65
-
-# Volatilidade
-ATR_MIN = 0.0002
-ATR_MAX = 0.0015
+CONFIANCA_MINIMA = 50        # Reduzido de 65 para 50
 
 def banner():
-    print("⚛️ QUANTUM IA M5 - OTC 4 Pares")
+    print("⚛️ QUANTUM IA M5 - OTC Modo Flexível")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -38,7 +34,6 @@ def carregar_config():
 cfg = carregar_config()
 TOKEN, CHAT = cfg['token'], cfg['chat']
 
-# Apenas 4 pares CONFIRMADOS
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
     "GBPUSD": "GBPUSD-OTC",
@@ -54,7 +49,7 @@ class Telegram:
         try: requests.post(f"{self.url}/sendMessage", json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, timeout=10)
         except: pass
 
-# Estratégias
+# Estratégias (mantidas)
 class Mortalha:
     def sma(self, d, p):
         try:
@@ -173,7 +168,6 @@ class Tsunami:
             return None, 0
         except: return None, 0
 
-# Bot
 class BotM5:
     def __init__(self):
         self.tg = Telegram(TOKEN, CHAT)
@@ -245,62 +239,45 @@ class BotM5:
                 except Exception as e:
                     print(f"Erro velas {nome}: {e}")
                     time.sleep(2)
-                    if "need reconnect" in str(e):
-                        api = await self.reconectar_se_necessario()
-                        if not api:
-                            break
 
-    def calcular_atr(self, velas, periodo=14):
-        if len(velas) < periodo + 1:
-            return None
-        trs = []
-        for i in range(-periodo, 0):
-            h = velas[i]['high']
-            l = velas[i]['low']
-            c_prev = velas[i-1]['close'] if i > -periodo else velas[i]['open']
-            tr = max(h - l, abs(h - c_prev), abs(l - c_prev))
-            trs.append(tr)
-        return np.mean(trs)
-
-    def buscar_sinal_consenso(self):
+    def buscar_sinal(self):
+        """Busca sinal com 1+ estratégia (modo flexível)"""
         for par, velas in self.velas.items():
-            if len(velas) < 30:
+            if len(velas) < 25:
                 continue
-            atr = self.calcular_atr(velas, 14)
-            if atr is None or atr < ATR_MIN or atr > ATR_MAX:
-                continue
-            precos = [v['close'] for v in velas]
-            sma20 = sum(precos[-20:]) / 20
-            atual = precos[-1]
+            
             votos_call = []
             votos_put = []
+            
             for nome_est, est in self.estrategias:
                 resultado = est.analisar(velas)
                 if resultado:
                     direcao, conf = resultado
                     if conf >= CONFIANCA_MINIMA:
                         if direcao == 'CALL':
-                            votos_call.append(conf)
+                            votos_call.append((nome_est, conf))
                         else:
-                            votos_put.append(conf)
-            if len(votos_call) >= 2 and atual > sma20:
-                conf_media = sum(votos_call) / len(votos_call)
-                vela = velas[-1]
-                corpo = abs(vela['close'] - vela['open'])
-                if corpo > 0:
-                    pavio_sup = vela['high'] - max(vela['close'], vela['open'])
-                    if pavio_sup > corpo * 0.5:
-                        continue
-                return {'ativo': par, 'direcao': 'CALL', 'confianca': conf_media}
-            if len(votos_put) >= 2 and atual < sma20:
-                conf_media = sum(votos_put) / len(votos_put)
-                vela = velas[-1]
-                corpo = abs(vela['close'] - vela['open'])
-                if corpo > 0:
-                    pavio_inf = min(vela['close'], vela['open']) - vela['low']
-                    if pavio_inf > corpo * 0.5:
-                        continue
-                return {'ativo': par, 'direcao': 'PUT', 'confianca': conf_media}
+                            votos_put.append((nome_est, conf))
+            
+            # Aceita 1+ voto
+            if votos_call:
+                melhor = max(votos_call, key=lambda x: x[1])
+                return {
+                    'ativo': par,
+                    'direcao': 'CALL',
+                    'confianca': melhor[1],
+                    'estrategia': melhor[0]
+                }
+            
+            if votos_put:
+                melhor = max(votos_put, key=lambda x: x[1])
+                return {
+                    'ativo': par,
+                    'direcao': 'PUT',
+                    'confianca': melhor[1],
+                    'estrategia': melhor[0]
+                }
+        
         return None
 
     def calcular_horario_entrada(self):
@@ -315,6 +292,8 @@ class BotM5:
     def formatar_sinal(self, sinal, horario):
         ativo = sinal['ativo']
         direcao = sinal['direcao']
+        conf = sinal['confianca']
+        est = sinal['estrategia']
         hora = horario.strftime('%H:%M')
         return f"""🚨SINAL AO VIVO🚨
 
@@ -324,6 +303,9 @@ class BotM5:
 👉🏼 HORARIO: {hora}
 
 🏳ATIVO: {ativo}-OTC {direcao}
+
+📊 Confiança: {conf:.0f}%
+🧠 Estratégia: {est}
 
 🍀🍀BOA SORTE 🍀 🍀"""
 
@@ -346,34 +328,13 @@ class BotM5:
             self.placar['w'] += 1
             resultado = "✅ WIN"
         else:
-            if USAR_GALE:
-                proxima_vela = horario_entrada + timedelta(minutes=5)
-                agora = datetime.now(FUSO_BR)
-                espera = (proxima_vela + timedelta(minutes=5) - agora).total_seconds()
-                if espera > 0:
-                    await asyncio.sleep(espera)
-                await asyncio.sleep(10)
-                await self.atualizar_velas()
-                velas = self.velas[ativo]
-                ganhou_gale = False
-                for v in velas:
-                    if v['time'].replace(second=0, microsecond=0) == proxima_vela.replace(second=0, microsecond=0):
-                        ganhou_gale = v['close'] > v['open'] if direcao == 'CALL' else v['close'] < v['open']
-                        break
-                if ganhou_gale:
-                    self.placar['g1'] += 1
-                    resultado = "✅ WIN GALE 1"
-                else:
-                    self.placar['l'] += 1
-                    resultado = "❌ LOSS"
-            else:
-                self.placar['l'] += 1
-                resultado = "❌ LOSS"
-        total = self.placar['w'] + self.placar['g1'] + self.placar['l']
-        tx = round(((self.placar['w'] + self.placar['g1']) / total) * 100, 1) if total > 0 else 0.0
+            self.placar['l'] += 1
+            resultado = "❌ LOSS"
+        total = self.placar['w'] + self.placar['l']
+        tx = round((self.placar['w'] / total) * 100, 1) if total > 0 else 0.0
         msg = f"""{resultado}
 📊 {ativo}-OTC | {direcao} {'🟢' if direcao=='CALL' else '🔴'}
-📊 Placar: 🟢{self.placar['w']}W 🟡{self.placar['g1']}G1 🔴{self.placar['l']}L
+📊 Placar: 🟢{self.placar['w']}W 🔴{self.placar['l']}L
 🎯 Assertividade: {tx}%"""
         self.tg.send(msg)
 
@@ -381,19 +342,19 @@ class BotM5:
         agora = datetime.now(FUSO_BR)
         if agora.day != self.ultimo_dia:
             self.ultimo_dia = agora.day
-            self.placar = {'w': 0, 'g1': 0, 'l': 0}
-            self.tg.send("🔄 *PLACAR ZERADO AUTOMATICAMENTE PARA O NOVO DIA*")
-            print("🔄 Placar zerado para o novo dia.")
+            self.placar = {'w': 0, 'l': 0}
+            self.tg.send("🔄 *PLACAR ZERADO*")
+            print("🔄 Placar zerado.")
 
     async def executar(self):
         banner()
-        print("⚛️ Bot M5 OTC iniciando...")
-        self.tg.send("🔥 *QUANTUM IA M5 OTC ATIVADO*\n📊 5 Estratégias\n🎯 4 Pares Confirmados\n🔄 Placar diário automático")
+        print("⚛️ Bot M5 OTC flexível iniciando...")
+        self.tg.send("🔥 *QUANTUM IA M5 ATIVADO*\n📊 Modo flexível (1+ estratégia)\n🎯 4 Pares OTC")
         while True:
             try:
                 self.verificar_zeramento_diario()
                 await self.atualizar_velas()
-                sinal = self.buscar_sinal_consenso()
+                sinal = self.buscar_sinal()
                 if sinal and time.time() - self.ult_sinal > INTERVALO_MINIMO:
                     horario_entrada = self.calcular_horario_entrada()
                     horario_envio = horario_entrada - timedelta(seconds=ANTECEDENCIA)
