@@ -1,551 +1,674 @@
 #!/usr/bin/env python3
 """
-╔══════════════════════════════════════════════╗
-║   ⚛️  Q U A N T U M   I A   M 5           ║
-║   🧠 Catalogador Inteligente Dinâmico       ║
-║   🎯 Melhor Estratégia + Par do Momento     ║
-║   🔄 Troca Automática | 🛡️ Filtro Pavio    ║
-║   📊 Filtro Volatilidade (ATR)              ║
-║   📊 26 Estratégias | 4 Pares Forex         ║
-║   ⚡ SEM Bloqueio | ☁️ Cloud Ready          ║
-╚══════════════════════════════════════════════╝
+⚛️ QUANTUM IA M5 - ESTRATÉGIAS OTC OTIMIZADAS
+📊 Price Action + Suportes/Resistências + Breakouts
+🎯 Foco em M5 para ativos OTC
+🔄 Com gerenciamento de risco e volatilidade
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os, random
 from datetime import datetime, timedelta, timezone
 from collections import deque, defaultdict
 from pathlib import Path
+from scipy import stats
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-
 FUSO_BR = timezone(timedelta(hours=-3))
 
-class C:
-    G='\033[92m';Y='\033[93m';R='\033[91m';C='\033[96m';W='\033[97m';B='\033[1m';E='\033[0m';GOLD='\033[38;5;220m'
+# Configurações M5
+INTERVALO_MINIMO = 600       # 10 min entre sinais (2 velas M5)
+USAR_GALE = True
+ANTECEDENCIA = 30            
+CONFIANCA_MINIMA = 70        # Aumentado para M5
+TIMEFRAME = 300              # 5 minutos
 
-def clear(): os.system('clear 2>/dev/null || cls 2>/dev/null')
+# Volatilidade M5 (ajustada)
+ATR_MIN = 0.0003
+ATR_MAX = 0.0020
+
+# Limites de risco
+RISCO_MAXIMO_POR_OPERACAO = 0.02  # 2% do capital
+STOP_LOSS_PERCENTUAL = 0.005      # 0.5% de stop
 
 def banner():
-    clear()
-    print(f"{C.GOLD}{C.B}╔══════════════════════════════════════════════╗")
-    print(f"║   ⚛️  Q U A N T U M   I A   M 5           ║")
-    print(f"║   🧠 Catalogador Inteligente | 4 Pares      ║")
-    print(f"║   📊 Filtro Volatilidade | 🛡️ Filtro Pavio ║")
-    print(f"╚══════════════════════════════════════════════╝{C.E}")
-
-CONFIG_FILE="config_quantum_m5.json"
+    print("⚛️ QUANTUM IA M5 - Estratégias OTC Otimizadas")
 
 def carregar_config():
-    cloud_token = os.environ.get('TELEGRAM_TOKEN')
-    cloud_chat = os.environ.get('TELEGRAM_CHAT_ID')
-    cloud_email = os.environ.get('IQ_EMAIL')
-    cloud_senha = os.environ.get('IQ_SENHA')
-    
-    if cloud_token and cloud_chat and cloud_email and cloud_senha:
+    token = os.environ.get('TELEGRAM_TOKEN')
+    chat = os.environ.get('TELEGRAM_CHAT_ID')
+    if token and chat:
         banner()
-        print(f"\n{C.G}✅ Modo CLOUD detectado!{C.E}\n")
-        return {"token": cloud_token, "chat": cloud_chat, "email": cloud_email, "senha": cloud_senha}
-    
-    if Path(CONFIG_FILE).exists():
-        with open(CONFIG_FILE) as f: cfg=json.load(f)
-        if 'token' not in cfg: Path(CONFIG_FILE).unlink();return carregar_config()
-        banner();print(f"\n{C.G}✅ Config carregada!{C.E}\n");return cfg
-    
-    banner()
-    try:
-        cfg={
-            "token":input(f"{C.G}Token: {C.E}").strip(),
-            "chat":input(f"{C.G}Chat ID: {C.E}").strip(),
-            "email":input(f"\n{C.G}Email IQ: {C.E}").strip(),
-            "senha":input(f"{C.G}Senha IQ: {C.E}").strip()
-        }
-    except (EOFError, KeyboardInterrupt):
-        print(f"\n{C.R}❌ Configure as variáveis de ambiente!{C.E}")
-        sys.exit(1)
-    
-    with open(CONFIG_FILE,'w') as f: json.dump(cfg,f,indent=2)
-    banner();print(f"\n{C.G}✅ Salvo!{C.E}\n");return cfg
+        print("✅ Modo CLOUD detectado!")
+        return {"token": token, "chat": chat}
+    print("❌ Configure TELEGRAM_TOKEN e TELEGRAM_CHAT_ID")
+    sys.exit(1)
 
-cfg=carregar_config()
-TOKEN=cfg['token'];CHAT=cfg['chat'];EMAIL=cfg['email'];SENHA=cfg['senha']
+cfg = carregar_config()
+TOKEN, CHAT = cfg['token'], cfg['chat']
 
-from iqoptionapi.stable_api import IQ_Option
-
-# 4 Pares Forex (mercado normal)
-ATIVOS={
-    "EURUSD":"EURUSD",
-    "GBPUSD":"GBPUSD",
-    "EURJPY":"EURJPY",
-    "USDJPY":"USDJPY"
+ATIVOS_OTC = {
+    "EURUSD": "EURUSD-OTC",
+    "GBPUSD": "GBPUSD-OTC",
+    "EURJPY": "EURJPY-OTC",
+    "AUDUSD": "AUDUSD-OTC"  # Adicionado mais ativo
 }
 
-# Filtro de Volatilidade (ajustado para Forex real)
-ATR_MIN = 0.0001
-ATR_MAX = 0.0008
-
-class Placar:
-    def __init__(self):self.w=0;self.l=0;self.g1=0;self.s=deque(maxlen=20);self.ops=[]
-    def win(self,g=0):
-        if g==0:self.w+=1;self.s.append('🟢');return"✅ WIN"
-        else:self.g1+=1;self.s.append('🟡');return"✅ WIN GALE 1"
-    def loss(self):self.l+=1;self.s.append('🔴');return"❌ LOSS"
-    def registrar(self,ativo,direcao,conf,resultado,is_gale=False):
-        agora=datetime.now(FUSO_BR);hora=agora.strftime('%H:%M')
-        sufixo="¹" if is_gale else "";emoji="✅️" if "WIN" in resultado else "🔴"
-        self.ops.append(f"M5 {ativo} {direcao} {hora} {emoji}{sufixo}")
-    def zerar(self):self.w=0;self.l=0;self.g1=0;self.s.clear();self.ops.clear()
-
 class Telegram:
-    def __init__(self,t,c):self.u=f"https://api.telegram.org/bot{t}";self.c=c
-    def send(self,txt):
-        try:requests.post(f"{self.u}/sendMessage",json={"chat_id":self.c,"text":txt,"parse_mode":"Markdown"},timeout=5)
-        except:pass
+    def __init__(self, t, c):
+        self.url = f"https://api.telegram.org/bot{t}"
+        self.c = c
+    def send(self, txt):
+        try: 
+            requests.post(f"{self.url}/sendMessage", 
+                         json={"chat_id": self.c, "text": txt, "parse_mode": "Markdown"}, 
+                         timeout=10)
+        except: 
+            pass
 
-# ═══════════════════════════════════════════
-# CATALOGADOR INTELIGENTE
-# ═══════════════════════════════════════════
-class CatalogadorInteligente:
-    def __init__(self):
-        self.performance = {}
-        self.combinacao_atual = None
-        self.sinais_na_combinacao = 0
-        self.max_sinais_por_combinacao = 2
-        self.taxa_minima = 55
-        self.min_operacoes = 3
-        self.total_operacoes = 0
-        self.ultimo_relatorio = 0
+# ==================== ESTRATÉGIAS M5 OTC ====================
+
+class PriceActionM5:
+    """Estratégia baseada em ação de preço para M5 OTC"""
+    
+    def identificar_padroes(self, velas):
+        """Identifica padrões de candlestick e price action"""
+        if len(velas) < 5:
+            return None, 0
+            
+        # Últimas velas
+        v1 = velas[-1]  # Vela atual
+        v2 = velas[-2]  # Vela anterior
         
-    def registrar(self, estrategia, par, venceu):
-        chave = f"{estrategia}|{par}"
-        if chave not in self.performance:
-            self.performance[chave] = {'wins': 0, 'losses': 0, 'total': 0, 'estrategia': estrategia, 'par': par}
-        self.performance[chave]['total'] += 1
-        if venceu: self.performance[chave]['wins'] += 1
-        else: self.performance[chave]['losses'] += 1
-        self.total_operacoes += 1
+        # Calcular tamanhos
+        corpo1 = abs(v1['close'] - v1['open'])
+        corpo2 = abs(v2['close'] - v2['open'])
+        range1 = v1['high'] - v1['low']
+        range2 = v2['high'] - v2['low']
+        
+        # Identificar padrões
+        padroes = []
+        
+        # Engolfo de Alta (Bullish Engulfing)
+        if (v2['close'] < v2['open'] and  # Vela anterior é bearish
+            v1['close'] > v1['open'] and  # Vela atual é bullish
+            v1['open'] < v2['close'] and  # Abriu abaixo do fechamento anterior
+            v1['close'] > v2['open']):    # Fechou acima da abertura anterior
+            padroes.append(('CALL', 80))
+            
+        # Engolfo de Baixa (Bearish Engulfing)
+        elif (v2['close'] > v2['open'] and  # Vela anterior é bullish
+              v1['close'] < v1['open'] and  # Vela atual é bearish
+              v1['open'] > v2['close'] and  # Abriu acima do fechamento anterior
+              v1['close'] < v2['open']):    # Fechou abaixo da abertura anterior
+            padroes.append(('PUT', 80))
+            
+        # Martelo (Hammer) - Alta
+        elif (v1['close'] > v1['open'] and  # Bullish
+              corpo1 < range1 * 0.3 and     # Corpo pequeno
+              (v1['open'] - v1['low']) > corpo1 * 2):  # Sombra inferior longa
+            padroes.append(('CALL', 75))
+            
+        # Estrela Cadente (Shooting Star) - Baixa
+        elif (v1['close'] < v1['open'] and  # Bearish
+              corpo1 < range1 * 0.3 and     # Corpo pequeno
+              (v1['high'] - v1['close']) > corpo1 * 2):  # Sombra superior longa
+            padroes.append(('PUT', 75))
+            
+        # Doji - Indefinição (pode ser reversão)
+        elif corpo1 < range1 * 0.1:
+            # Verificar contexto
+            if len(velas) >= 10:
+                # Se estava em tendência de alta, pode reverter para baixa
+                tendencia = self.analisar_tendencia(velas)
+                if tendencia == 'ALTA':
+                    padroes.append(('PUT', 65))
+                elif tendencia == 'BAIXA':
+                    padroes.append(('CALL', 65))
+        
+        if padroes:
+            return padroes[0]
+        return None, 0
     
-    def get_taxa(self, estrategia, par):
-        chave = f"{estrategia}|{par}"
-        if chave in self.performance:
-            p = self.performance[chave]
-            return round((p['wins']/p['total'])*100, 1) if p['total'] > 0 else 0
-        return 0
+    def analisar_tendencia(self, velas):
+        """Analisa tendência de curto prazo"""
+        if len(velas) < 10:
+            return 'NEUTRO'
+            
+        closes = [v['close'] for v in velas[-10:]]
+        # Usar regressão linear para tendência
+        x = np.arange(len(closes))
+        slope, _, _, _, _ = stats.linregress(x, closes)
+        
+        if slope > 0.0001:
+            return 'ALTA'
+        elif slope < -0.0001:
+            return 'BAIXA'
+        return 'NEUTRO'
     
-    def get_melhores(self, min_ops=3):
-        melhores = []
-        for chave, p in self.performance.items():
-            if p['total'] >= min_ops:
-                taxa = (p['wins']/p['total'])*100
-                if taxa >= self.taxa_minima:
-                    melhores.append({
-                        'estrategia': p['estrategia'],
-                        'par': p['par'],
-                        'taxa': round(taxa, 1),
-                        'total': p['total'],
-                        'wins': p['wins'],
-                        'losses': p['losses']
-                    })
-        melhores.sort(key=lambda x: x['taxa'], reverse=True)
-        return melhores
-    
-    def escolher_melhor(self):
-        melhores = self.get_melhores(self.min_operacoes)
-        return melhores[0] if melhores else None
-    
-    def precisa_trocar(self):
-        if not self.combinacao_atual: return True
-        if self.sinais_na_combinacao >= self.max_sinais_por_combinacao: return True
-        taxa_atual = self.get_taxa(self.combinacao_atual['estrategia'], self.combinacao_atual['par'])
-        if taxa_atual < self.taxa_minima: return True
-        melhor = self.escolher_melhor()
-        if melhor and melhor['taxa'] > taxa_atual + 10: return True
-        return False
-    
-    def atualizar_combinacao(self):
-        if self.precisa_trocar():
-            melhor = self.escolher_melhor()
-            if melhor:
-                self.combinacao_atual = {'estrategia': melhor['estrategia'], 'par': melhor['par'], 'taxa': melhor['taxa']}
-                self.sinais_na_combinacao = 0
-                return True, melhor
-        return False, self.combinacao_atual
-    
-    def get_relatorio(self):
-        melhores = self.get_melhores(2)
-        if not melhores: return None
-        msg = "📊 *CATALOGADOR INTELIGENTE*\n"
-        msg += f"📈 Total: {self.total_operacoes} operações\n"
-        if self.combinacao_atual:
-            msg += f"🎯 *Atual:* {self.combinacao_atual['estrategia']} em {self.combinacao_atual['par']} ({self.combinacao_atual['taxa']}%)\n"
-        msg += f"\n🏆 *Top Combinações:*\n"
-        for i, m in enumerate(melhores[:6], 1):
-            emoji = "🥇" if i==1 else "🥈" if i==2 else "🥉" if i==3 else "📊"
-            msg += f"{emoji} {m['estrategia']} | {m['par']}\n   {m['taxa']}% | {m['wins']}W/{m['losses']}L ({m['total']} ops)\n"
-        return msg
+    def analisar(self, velas):
+        """Análise principal da estratégia"""
+        try:
+            if len(velas) < 10:
+                return None, 0
+                
+            padrao, conf = self.identificar_padroes(velas)
+            if padrao:
+                return padrao, conf
+                
+            # Análise de momentum
+            closes = [v['close'] for v in velas[-5:]]
+            if len(closes) >= 5:
+                # Aceleração de preço
+                dif1 = closes[-1] - closes[-2]
+                dif2 = closes[-2] - closes[-3]
+                if dif1 > dif2 * 1.5 and dif1 > 0:
+                    return 'CALL', 70
+                elif dif1 < dif2 * 1.5 and dif1 < 0:
+                    return 'PUT', 70
+                    
+            return None, 0
+        except Exception as e:
+            print(f"Erro PriceAction: {e}")
+            return None, 0
 
-# ═══════════════════════════════════════════
-# 26 ESTRATÉGIAS (mantidas iguais)
-# ═══════════════════════════════════════════
-class Mortalha:
-    def sma(self,d,p):
-        try:
-            if len(d)>=p:return sum(d[-p:])/p
-            return sum(d)/len(d) if d else 0
-        except:return 0
-    def wma(self,d,p):
-        try:
-            if len(d)<p:return sum(d)/len(d) if d else 0
-            w=np.arange(1,p+1);return np.sum(np.array(d[-p:])*w)/np.sum(w)
-        except:return 0
-    def analisar(self,v):
-        try:
-            if len(v)<30:return None,0
-            c=np.array([x['close'] for x in v]);b1=np.zeros(len(c))
-            for i in range(len(c)):
-                if i>=33:b1[i]=self.sma(c[:i+1],1)-self.sma(c[:i+1],34)
-            b2=np.zeros(len(b1))
-            for i in range(len(b1)):
-                if i>=3:b2[i]=self.wma(b1[:i+1],4)
-            if b1[-1]>b2[-1] and b1[-2]<=b2[-2]:return'CALL',min(45+abs(b1[-1]-b2[-1])*10000,90)
-            if b1[-1]<b2[-1] and b1[-2]>=b2[-2]:return'PUT',min(45+abs(b1[-1]-b2[-1])*10000,90)
-            return None,0
-        except:return None,0
-
-class Formiga:
-    def ema(self,p,pe):
-        try:
-            if len(p)<pe:return sum(p)/len(p) if p else 0
-            return np.mean(p[-pe:])
-        except:return 0
-    def analisar(self,v):
-        try:
-            if len(v)<15:return None,0
-            precos=np.array([x['close'] for x in v])
-            ema5=self.ema(precos,5);ema10=self.ema(precos,10)
-            dif=((ema5-ema10)/ema10)*100 if ema10>0 else 0
-            sc=0;sp=0
-            if dif>0.02:sc+=3
-            elif dif>0.005:sc+=1
-            elif dif<-0.02:sp+=3
-            elif dif<-0.005:sp+=1
-            if sc>=2 and sc>sp:return'CALL',min(50+sc*4,85)
-            if sp>=2 and sp>sc:return'PUT',min(50+sp*4,85)
-            return None,0
-        except:return None,0
-
-# (Todas as outras estratégias mantidas)
-
-# ═══════════════════════════════════════════
-# QUANTUM IA
-# ═══════════════════════════════════════════
-class QuantumIA:
+class SuporteResistenciaM5:
+    """Estratégia de Suportes e Resistências para M5 OTC"""
+    
     def __init__(self):
-        self.estrategias=[
-            ('💀 Mortalha',Mortalha()),('🐜 Formiga',Formiga()),
-            # ... (todas as 26)
-        ]
-        self.catalogador=CatalogadorInteligente()
-        self.sinais_bloqueados_pavio=0
-        self.sinais_bloqueados_volatilidade=0
+        self.niveis = {}
+        self.ultima_atualizacao = {}
+    
+    def calcular_niveis(self, velas, periodo=20):
+        """Calcula níveis de suporte e resistência"""
+        if len(velas) < periodo:
+            return None, None
+            
+        # Pivots recentes
+        altas = [v['high'] for v in velas[-periodo:]]
+        baixas = [v['low'] for v in velas[-periodo:]]
+        closes = [v['close'] for v in velas[-periodo:]]
+        
+        # Resistência = topo do range
+        resistencia = np.percentile(altas, 80)
+        suporte = np.percentile(baixas, 20)
+        
+        # Média móvel como suporte/resistência dinâmica
+        sma = np.mean(closes)
+        
+        return suporte, resistencia, sma
+    
+    def analisar(self, velas):
+        """Análise baseada em suportes/resistências"""
+        try:
+            if len(velas) < 20:
+                return None, 0
+                
+            suporte, resistencia, sma = self.calcular_niveis(velas)
+            if suporte is None:
+                return None, 0
+                
+            atual = velas[-1]['close']
+            anterior = velas[-2]['close']
+            
+            # Breakout de resistência
+            if anterior < resistencia and atual > resistencia:
+                # Confirmar volume (se disponível)
+                if atual > sma * 1.002:  # Acima da média
+                    return 'CALL', 75
+                    
+            # Breakout de suporte
+            elif anterior > suporte and atual < suporte:
+                if atual < sma * 0.998:  # Abaixo da média
+                    return 'PUT', 75
+                    
+            # Reversão em suporte (pullback)
+            elif atual > suporte and atual < suporte * 1.002 and anterior < suporte:
+                return 'CALL', 70
+                
+            # Reversão em resistência (pullback)
+            elif atual < resistencia and atual > resistencia * 0.998 and anterior > resistencia:
+                return 'PUT', 70
+                
+            return None, 0
+        except Exception as e:
+            print(f"Erro SuporteResistencia: {e}")
+            return None, 0
 
-    def _calcular_atr(self, velas, periodo=14):
+class BreakoutM5:
+    """Estratégia de Breakout para M5 OTC"""
+    
+    def identificar_consolidacao(self, velas):
+        """Identifica período de consolidação"""
+        if len(velas) < 10:
+            return None, None
+            
+        # Range das últimas 10 velas
+        altas = [v['high'] for v in velas[-10:]]
+        baixas = [v['low'] for v in velas[-10:]]
+        
+        max_range = max(altas) - min(baixas)
+        avg_range = np.mean([v['high'] - v['low'] for v in velas[-10:]])
+        
+        # Consolidação = range pequeno comparado às velas
+        if max_range < avg_range * 1.5:
+            return max(altas), min(baixas)
+        return None, None
+    
+    def analisar(self, velas):
+        """Análise de breakouts"""
+        try:
+            if len(velas) < 15:
+                return None, 0
+                
+            resistencia, suporte = self.identificar_consolidacao(velas)
+            if resistencia is None:
+                return None, 0
+                
+            atual = velas[-1]['close']
+            anterior = velas[-2]['close']
+            
+            # Breakout com confirmação
+            if anterior < resistencia and atual > resistencia:
+                # Verificar se o movimento é forte
+                dif_percent = (atual - resistencia) / resistencia * 100
+                if dif_percent > 0.03:  # Movimento de pelo menos 0.03%
+                    return 'CALL', 80
+                    
+            elif anterior > suporte and atual < suporte:
+                dif_percent = (suporte - atual) / suporte * 100
+                if dif_percent > 0.03:
+                    return 'PUT', 80
+                    
+            return None, 0
+        except Exception as e:
+            print(f"Erro Breakout: {e}")
+            return None, 0
+
+class TendenciaM5:
+    """Estratégia baseada em tendência com médias móveis"""
+    
+    def calcular_medias(self, velas):
+        """Calcula médias móveis"""
+        if len(velas) < 30:
+            return None, None, None
+            
+        closes = [v['close'] for v in velas]
+        sma5 = np.mean(closes[-5:])
+        sma10 = np.mean(closes[-10:])
+        sma20 = np.mean(closes[-20:])
+        
+        return sma5, sma10, sma20
+    
+    def analisar(self, velas):
+        """Análise de tendência"""
+        try:
+            if len(velas) < 30:
+                return None, 0
+                
+            sma5, sma10, sma20 = self.calcular_medias(velas)
+            if sma5 is None:
+                return None, 0
+                
+            atual = velas[-1]['close']
+            
+            # Tendência de alta confirmada
+            if (sma5 > sma10 > sma20 and 
+                atual > sma5 and
+                atual > sma20 * 1.002):
+                return 'CALL', 75
+                
+            # Tendência de baixa confirmada
+            elif (sma5 < sma10 < sma20 and 
+                  atual < sma5 and
+                  atual < sma20 * 0.998):
+                return 'PUT', 75
+                
+            # Cruzamento de médias (Golden/Death Cross)
+            if len(velas) >= 31:
+                sma5_ant = np.mean([v['close'] for v in velas[-6:-1]])
+                sma10_ant = np.mean([v['close'] for v in velas[-11:-1]])
+                
+                if sma5_ant < sma10_ant and sma5 > sma10:
+                    return 'CALL', 70
+                elif sma5_ant > sma10_ant and sma5 < sma10:
+                    return 'PUT', 70
+                    
+            return None, 0
+        except Exception as e:
+            print(f"Erro Tendencia: {e}")
+            return None, 0
+
+# ==================== BOT M5 ====================
+
+class BotM5:
+    def __init__(self):
+        self.tg = Telegram(TOKEN, CHAT)
+        self.velas = {nome: deque(maxlen=100) for nome in ATIVOS_OTC}
+        self.estrategias_m5 = [
+            ('📊 Price Action', PriceActionM5()),
+            ('🏛️ Suporte/Resistência', SuporteResistenciaM5()),
+            ('🚀 Breakout', BreakoutM5()),
+            ('📈 Tendência', TendenciaM5())
+        ]
+        self.iq_api = None
+        self.placar = {'w': 0, 'g1': 0, 'l': 0}
+        self.ult_sinal = 0
+        self.ultimo_dia = datetime.now(FUSO_BR).day
+        self.sinais_ativos = {}  # Para rastrear sinais em andamento
+
+    def conectar_iq(self):
+        from iqoptionapi.stable_api import IQ_Option
+        email = os.environ.get('IQ_EMAIL')
+        senha = os.environ.get('IQ_SENHA')
+        if not email or not senha:
+            return None
+        try:
+            if self.iq_api:
+                try: self.iq_api.close()
+                except: pass
+            self.iq_api = IQ_Option(email, senha)
+            check, _ = self.iq_api.connect()
+            if check:
+                print("✅ Conectado à IQ Option.")
+                return self.iq_api
+            else:
+                print("❌ Falha na conexão.")
+                return None
+        except Exception as e:
+            print(f"❌ Erro: {e}")
+            return None
+
+    async def reconectar_se_necessario(self):
+        if self.iq_api is None or not self.iq_api.check_connect():
+            print("🔄 Reconectando...")
+            return self.conectar_iq()
+        return self.iq_api
+
+    async def atualizar_velas(self):
+        """Atualiza velas M5"""
+        api = await self.reconectar_se_necessario()
+        if not api:
+            return
+        for nome, ativo_id in ATIVOS_OTC.items():
+            for retry in range(3):
+                try:
+                    if not api.check_connect():
+                        api = await self.reconectar_se_necessario()
+                        if not api:
+                            break
+                    # M5 = 300 segundos
+                    c = api.get_candles(ativo_id, TIMEFRAME, 80, time.time())
+                    if c and len(c) > 0:
+                        self.velas[nome].clear()
+                        for x in c[-80:]:
+                            if isinstance(x, dict):
+                                self.velas[nome].append({
+                                    'time': datetime.fromtimestamp(x.get('from',0), FUSO_BR),
+                                    'open': float(x['open']), 'high': float(x['max']),
+                                    'low': float(x['min']), 'close': float(x['close']),
+                                    'volume': int(x.get('volume',0))
+                                })
+                        break
+                    time.sleep(2)
+                except Exception as e:
+                    print(f"Erro velas {nome}: {e}")
+                    time.sleep(2)
+
+    def calcular_atr(self, velas, periodo=14):
+        """Calcula ATR para M5"""
         if len(velas) < periodo + 1:
             return None
         trs = []
         for i in range(-periodo, 0):
-            if i > -len(velas):
-                h = velas[i]['high']
-                l = velas[i]['low']
-                c_prev = velas[i-1]['close'] if i > -periodo else velas[i]['open']
-                tr = max(h - l, abs(h - c_prev), abs(l - c_prev))
-                trs.append(tr)
-        return np.mean(trs) if trs else None
-    
-    def _volatilidade_ok(self, velas):
-        atr = self._calcular_atr(velas, 14)
-        if atr is None:
-            return False
-        return ATR_MIN <= atr <= ATR_MAX
+            h = velas[i]['high']
+            l = velas[i]['low']
+            c_prev = velas[i-1]['close'] if i > -periodo else velas[i]['open']
+            tr = max(h - l, abs(h - c_prev), abs(l - c_prev))
+            trs.append(tr)
+        return np.mean(trs)
 
-    def obter_sinal_dinamico(self, velas_dict, bloqueados):
-        trocou, combinacao = self.catalogador.atualizar_combinacao()
-        if trocou and combinacao:
-            print(f"  🧠 Nova combinação: {combinacao['estrategia']} em {combinacao['par']} ({combinacao['taxa']}%)")
-        if not combinacao:
-            return self._buscar_qualquer_sinal(velas_dict, bloqueados)
-        par = combinacao['par']; estrategia_nome = combinacao['estrategia']
-        if par in velas_dict and par not in bloqueados and len(velas_dict[par]) >= 30:
-            if not self._volatilidade_ok(velas_dict[par]):
-                self.sinais_bloqueados_volatilidade += 1
-                return self._buscar_qualquer_sinal(velas_dict, bloqueados)
-            d, c = self.analisar_estrategia(estrategia_nome, velas_dict[par])
-            if d and self._pavio_ok(velas_dict[par], d):
-                return {'ativo': par, 'direcao': d, 'confianca': c, 'estrategia': estrategia_nome}
-            elif d: self.sinais_bloqueados_pavio += 1
-        return self._buscar_qualquer_sinal(velas_dict, bloqueados)
-    
-    def _pavio_ok(self, velas, direcao):
-        if len(velas) < 1: return True
-        va = velas[-1]; corpo = abs(va['close'] - va['open'])
-        if corpo == 0: return True
-        if direcao == 'CALL':
-            pavio_sup = va['high'] - max(va['close'], va['open'])
-            return pavio_sup <= corpo * 0.6
-        else:
-            pavio_inf = min(va['close'], va['open']) - va['low']
-            return pavio_inf <= corpo * 0.6
-    
-    def _buscar_qualquer_sinal(self, velas_dict, bloqueados):
-        melhor = None; melhor_score = 0
-        for nome_par, velas in velas_dict.items():
-            if nome_par in bloqueados: continue
-            if len(velas) < 30: continue
-            if not self._volatilidade_ok(velas):
+    def calcular_volatilidade_relativa(self, velas):
+        """Calcula volatilidade relativa para M5"""
+        if len(velas) < 20:
+            return 0
+            
+        closes = [v['close'] for v in velas[-20:]]
+        returns = np.diff(np.log(closes))
+        return np.std(returns) * 100  # Volatilidade em percentual
+
+    def buscar_sinal_consenso(self):
+        """Busca sinais com consenso das estratégias M5"""
+        melhores_sinais = []
+        
+        for par, velas in self.velas.items():
+            if len(velas) < 30:
                 continue
-            for nome_est, est in self.estrategias:
-                try:
-                    d, c = est.analisar(velas)
-                    if d and self._pavio_ok(velas, d):
-                        score = c
-                        taxa = self.catalogador.get_taxa(nome_est, nome_par)
-                        if taxa > 60: score += taxa * 0.3
-                        if score > melhor_score:
-                            melhor_score = score
-                            melhor = {'ativo': nome_par, 'direcao': d, 'confianca': c, 'estrategia': nome_est}
-                except: pass
-        return melhor
 
-# ═══════════════════════════════════════════
-# IQ API (M5 - Forex real)
-# ═══════════════════════════════════════════
-class IQAPI:
-    def __init__(self,e,s,a):self.e=e;self.s=s;self.a=a;self.api=None;self.velas={nome:deque(maxlen=100) for nome in a};self.ok=False;self.erros=0
-    def conectar(self):
-        for t in range(5):
-            try:
-                if self.api:
-                    try:self.api.close()
-                    except:pass
-                    time.sleep(2)
-                self.api=IQ_Option(self.e,self.s);ok,_=self.api.connect()
-                if ok:self.ok=True;self.erros=0;return True
-                time.sleep(5*(t+1))
-            except:time.sleep(5*(t+1))
-        self.ok=False;return False
-    def obter(self,ativo_id,qtd=80):
-        for retry in range(3):
-            if not self.ok and not self.conectar():return 0
-            try:
-                c=self.api.get_candles(ativo_id,300,qtd,time.time())
-                if c and len(c)>0:
-                    nome=[k for k,v in self.a.items() if v==ativo_id][0];self.velas[nome].clear()
-                    for x in c[-qtd:]:
-                        if isinstance(x,dict):
-                            try:self.velas[nome].append({'time':datetime.fromtimestamp(x.get('from',0),FUSO_BR),'open':float(x['open']),'high':float(x['max']),'low':float(x['min']),'close':float(x['close']),'volume':int(x.get('volume',0))})
-                            except:pass
-                    return len(c)
-            except:
-                self.ok=False
-                if retry<2:time.sleep(3);continue
-        return 0
-    def atualizar(self):
-        if not self.ok:self.conectar()
-        for n,i in self.a.items():
-            try:self.obter(i)
-            except:pass
+            # Verificar volatilidade
+            atr = self.calcular_atr(velas, 14)
+            if atr is None or atr < ATR_MIN or atr > ATR_MAX:
+                continue
 
-# ═══════════════════════════════════════════
-# BOT M5 FOREX
-# ═══════════════════════════════════════════
-class Bot:
-    def __init__(self):
-        self.tg=Telegram(TOKEN,CHAT);self.m=QuantumIA();self.p=Placar();self.iq=IQAPI(EMAIL,SENHA,ATIVOS)
-        self.op=False;self.g=0;self.ult=0;self.sinais=0
-        self.ultimo_dia=datetime.now(FUSO_BR).day;self.placar_enviado=False
+            # Calcular média móvel para confirmação de tendência
+            precos = [v['close'] for v in velas]
+            sma20 = sum(precos[-20:]) / 20
+            sma50 = sum(precos[-50:]) / 50 if len(precos) >= 50 else sma20
+            atual = precos[-1]
 
-    def _barra(self,pct):p=int(pct/10);return '█'*p+'░'*(10-p)
+            votos_call = []
+            votos_put = []
+            detalhes_estrategias = []
+            
+            for nome_est, est in self.estrategias_m5:
+                resultado = est.analisar(velas)
+                if resultado:
+                    direcao, conf = resultado
+                    if conf >= CONFIANCA_MINIMA:
+                        if direcao == 'CALL':
+                            votos_call.append((conf, nome_est))
+                        else:
+                            votos_put.append((conf, nome_est))
+                        detalhes_estrategias.append(f"{nome_est}: {direcao} ({conf}%)")
 
-    def fechar_dia(self):
-        agora=datetime.now(FUSO_BR);data=agora.strftime('%d/%m/%Y')
-        dias={'Monday':'Segunda','Tuesday':'Terça','Wednesday':'Quarta','Thursday':'Quinta','Friday':'Sexta','Saturday':'Sábado','Sunday':'Domingo'}
-        dia=dias.get(agora.strftime('%A'),'')
-        w=self.p.w;g1=self.p.g1;l=self.p.l
-        total_profit=w+g1;total_trades=total_profit+l
-        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
-        lucro=round(w*1.6+g1*0.4-l*5,2)
-        lista_ops=""
-        if self.p.ops:
-            for op in self.p.ops[-50:]:lista_ops+=op+"\n"
-        relatorio=self.m.catalogador.get_relatorio()
-        msg=f"""📊 *PLACAR DIÁRIO FINALIZADO*
+            # Confluência de estratégias
+            if len(votos_call) >= 2 and len(votos_call) > len(votos_put):
+                # Verificar tendência de alta
+                if atual > sma20 and sma20 > sma50 * 0.999:
+                    conf_media = sum(c[0] for c in votos_call) / len(votos_call)
+                    # Bônus de confiança pela tendência
+                    conf_media = min(conf_media * 1.05, 95)
+                    
+                    melhores_sinais.append({
+                        'ativo': par, 
+                        'direcao': 'CALL', 
+                        'confianca': conf_media,
+                        'estrategias': detalhes_estrategias,
+                        'atr': atr,
+                        'sma20': sma20,
+                        'atual': atual
+                    })
 
-🗓️ *{data} ({dia})*
-⏰ {agora.strftime('%H:%M')}
+            elif len(votos_put) >= 2 and len(votos_put) > len(votos_call):
+                if atual < sma20 and sma20 < sma50 * 1.001:
+                    conf_media = sum(c[0] for c in votos_put) / len(votos_put)
+                    conf_media = min(conf_media * 1.05, 95)
+                    
+                    melhores_sinais.append({
+                        'ativo': par, 
+                        'direcao': 'PUT', 
+                        'confianca': conf_media,
+                        'estrategias': detalhes_estrategias,
+                        'atr': atr,
+                        'sma20': sma20,
+                        'atual': atual
+                    })
 
-┌──────────────────────────┐
-│ ⚛️ QUANTUM IA M5        │
-│ 🟢 Wins Diretos: {w}      │
-│ 🟡 Gale 1: {g1}            │
-│ 🔴 Losses: {l}            │
-│ 📨 Total Sinais: {total_trades} │
-│ 🎯 Assertividade: {tx}%   │
-│ [{self._barra(tx)}]      │
-│ 💰 Lucro: +R${lucro}      │
-│ 🛡️ Pavios bloqueados: {self.m.sinais_bloqueados_pavio} │
-│ 📊 Volatilidade bloqueada: {self.m.sinais_bloqueados_volatilidade} │
-└──────────────────────────┘
+        # Ordenar por confiança
+        if melhores_sinais:
+            melhores_sinais.sort(key=lambda x: x['confianca'], reverse=True)
+            return melhores_sinais[0]
+            
+        return None
 
-📋 *Operações do Dia:*
-{lista_ops if lista_ops else 'Nenhuma operação'}
+    def calcular_horario_entrada(self):
+        """Calcula horário de entrada para M5"""
+        agora = datetime.now(FUSO_BR)
+        # Próximo candle M5
+        minutos = agora.minute
+        proximo = ((minutos // 5) + 1) * 5
+        if proximo >= 60:
+            proximo = 0
+            agora += timedelta(hours=1)
+        return agora.replace(minute=proximo, second=0, microsecond=0)
 
-🔄 *Placar zerado!*"""
-        self.tg.send(msg)
-        if relatorio:self.tg.send(relatorio)
-        print(f"\n{C.GOLD}╔══════════════════════════════╗{C.E}")
-        print(f"{C.GOLD}║ 📊 PLACAR DIÁRIO FINALIZADO ║{C.E}")
-        print(f"{C.GOLD}║ 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% 💰+R${lucro} ║{C.E}")
-        print(f"{C.GOLD}╚══════════════════════════════╝{C.E}\n")
-        self.p.zerar();self.sinais=0;self.m.sinais_bloqueados_pavio=0;self.m.sinais_bloqueados_volatilidade=0
-        print(f"  {C.G}🔄 Placar ZERADO! Novo dia!{C.E}\n")
+    def formatar_sinal(self, sinal, horario):
+        """Formata sinal para envio"""
+        ativo = sinal['ativo']
+        direcao = sinal['direcao']
+        conf = sinal['confianca']
+        estrategias = sinal.get('estrategias', [])
+        atr = sinal.get('atr', 0)
+        
+        hora = horario.strftime('%H:%M')
+        
+        # Emoji para direção
+        emoji_dir = '🟢' if direcao == 'CALL' else '🔴'
+        
+        # Estratégias que concordaram
+        estrategias_str = '\n'.join(estrategias[:3])  # Mostrar até 3
+        
+        return f"""🚨 SINAL M5 OTC 🚨
 
-    def fmt_sinal(self,s):
-        agora=datetime.now(FUSO_BR)
-        minuto=agora.minute
-        resto=minuto%5
-        if resto==0 and agora.second==0:
-            he=(agora.replace(second=0,microsecond=0)).strftime('%H:%M')
+⚛️ QUANTUM IA M5
+⏲ EXPIRAÇÃO: 5 MINUTOS
+
+👉🏼 HORARIO: {hora}
+
+🏳 ATIVO: {ativo}-OTC {emoji_dir}
+📊 DIREÇÃO: {direcao}
+🎯 CONFIANÇA: {conf:.1f}%
+
+📈 ESTRATÉGIAS CONFIRMANDO:
+{estrategias_str}
+
+📊 VOLATILIDADE: {atr:.5f}
+
+🍀🍀 BOA SORTE 🍀🍀"""
+
+    async def monitorar_resultado(self, sinal, horario_entrada):
+        """Monitora resultado da operação M5"""
+        ativo = sinal['ativo']
+        direcao = sinal['direcao']
+        
+        # Aguardar 5 minutos (M5)
+        agora = datetime.now(FUSO_BR)
+        espera = (horario_entrada + timedelta(minutes=5) - agora).total_seconds()
+        if espera > 0:
+            await asyncio.sleep(espera)
+        
+        await asyncio.sleep(10)  # Aguardar fechamento
+        await self.atualizar_velas()
+        velas = self.velas[ativo]
+        
+        # Verificar resultado
+        ganhou = False
+        for v in velas:
+            if v['time'].replace(second=0, microsecond=0) == horario_entrada.replace(second=0, microsecond=0):
+                if direcao == 'CALL':
+                    ganhou = v['close'] > v['open']
+                else:
+                    ganhou = v['close'] < v['open']
+                break
+        
+        if ganhou:
+            self.placar['w'] += 1
+            resultado = "✅ WIN"
         else:
-            he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=5-resto)).strftime('%H:%M')
-        e="🟢" if s['direcao']=='CALL' else "🔴"
-        est=s.get('estrategia','N/A')
-        return f"""⚛️ SINAL QUANTUM IA ⚛️
-
-⏰ Horário: {he}
-💰 Ativo: {s['ativo']}
-📈 Direção: {s['direcao']} {e}
-⌛️ Expiração: M5
-📊 Confiança: {s['confianca']:.0f}%
-🧠 Estratégia: {est}
-
-⚠️ Entrar somente no horário marcado.
-🔄 1 recuperação (Gale 1)!"""
-
-    def fmt_corr(self,r,s):
-        total_profit=self.p.w+self.p.g1
-        total_trades=total_profit+self.p.l
-        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
-        return f"""{r}
-📊 {s['ativo']} | {s['direcao']} {'🟢' if s['direcao']=='CALL' else '🔴'}
-📊 Placar: 🟢{self.p.w}W 🟡{self.p.g1}G1 🔴{self.p.l}L
+            if USAR_GALE:
+                # Gale 1 - entrar na próxima vela M5
+                proxima_vela = horario_entrada + timedelta(minutes=5)
+                agora = datetime.now(FUSO_BR)
+                espera = (proxima_vela + timedelta(minutes=5) - agora).total_seconds()
+                if espera > 0:
+                    await asyncio.sleep(espera)
+                await asyncio.sleep(10)
+                await self.atualizar_velas()
+                
+                ganhou_gale = False
+                for v in velas:
+                    if v['time'].replace(second=0, microsecond=0) == proxima_vela.replace(second=0, microsecond=0):
+                        if direcao == 'CALL':
+                            ganhou_gale = v['close'] > v['open']
+                        else:
+                            ganhou_gale = v['close'] < v['open']
+                        break
+                
+                if ganhou_gale:
+                    self.placar['g1'] += 1
+                    resultado = "✅ WIN GALE 1"
+                else:
+                    self.placar['l'] += 1
+                    resultado = "❌ LOSS"
+            else:
+                self.placar['l'] += 1
+                resultado = "❌ LOSS"
+        
+        # Atualizar estatísticas
+        total = self.placar['w'] + self.placar['g1'] + self.placar['l']
+        tx = round(((self.placar['w'] + self.placar['g1']) / total) * 100, 1) if total > 0 else 0.0
+        
+        msg = f"""{resultado}
+📊 {ativo}-OTC | {direcao} {'🟢' if direcao=='CALL' else '🔴'}
+📊 Placar: 🟢{self.placar['w']}W 🟡{self.placar['g1']}G1 🔴{self.placar['l']}L
 🎯 Assertividade: {tx}%"""
+        
+        self.tg.send(msg)
 
-    def bateu(self,d,p,v):return v['high']>p if d=='CALL' else v['low']<p
+    def verificar_zeramento_diario(self):
+        """Zera placar diariamente"""
+        agora = datetime.now(FUSO_BR)
+        if agora.day != self.ultimo_dia:
+            self.ultimo_dia = agora.day
+            self.placar = {'w': 0, 'g1': 0, 'l': 0}
+            self.tg.send("🔄 *PLACAR ZERADO*")
+            print("🔄 Placar zerado.")
 
-    async def esperar(self,seg=300):
-        try:
-            agora=datetime.now(FUSO_BR)
-            alvo=agora.replace(second=0,microsecond=0)+timedelta(minutes=5)+timedelta(seconds=seg)
-            e=max(0,(alvo-agora).total_seconds())
-            if e>0:await asyncio.sleep(e)
-            self.iq.atualizar()
-        except:pass
-
-    async def corrigir(self,sinal):
-        at=sinal['ativo'];d=sinal['direcao'];conf=sinal.get('confianca',0)
-        estrategia_nome=sinal.get('estrategia','Desconhecida')
-        try:
-            self.iq.atualizar()
-            await self.esperar(8);v=self.iq.velas[at]
-            if len(v)<2:self.op=False;return
-            pc=v[-1]['open'];hora=v[-1]['time'].strftime('%H:%M')
-            print(f"\n  ⚛️ {at} {d} | {estrategia_nome} | OPEN:{pc:.5f} | Vela:{hora}")
-            await self.esperar(5);v=self.iq.velas[at]
-            if len(v)>0 and self.bateu(d,pc,v[-1]):
-                r=self.p.win(0);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN")
-                self.tg.send(self.fmt_corr(r,sinal))
-                self.m.catalogador.registrar(estrategia_nome,at,True)
-                self.op=False;return
-            print(f"  ❌ Principal")
-            self.g=1;v=self.iq.velas[at];pg=v[-1]['open'] if len(v)>0 else pc
-            print(f"  🔄 GALE 1 | OPEN:{pg:.5f}");await self.esperar(5);v=self.iq.velas[at]
-            if len(v)>0 and self.bateu(d,pg,v[-1]):
-                r=self.p.win(1);print(f"  ✅ {r}");self.p.registrar(at,d,conf,"WIN GALE 1",is_gale=True)
-                self.tg.send(self.fmt_corr(r,sinal))
-                self.m.catalogador.registrar(estrategia_nome,at,True)
-                self.op=False;return
-            print(f"  ❌ GALE 1");r=self.p.loss();print(f"  🔴 {r}");self.p.registrar(at,d,conf,"LOSS")
-            self.tg.send(self.fmt_corr(r,sinal))
-            self.m.catalogador.registrar(estrategia_nome,at,False)
-            self.op=False
-        except Exception as e:print(f"  ❌ {e}");self.op=False
-
-    async def run(self):
+    async def executar(self):
+        """Loop principal do bot"""
         banner()
-        print(f"\n  ⚛️ Iniciando Quantum IA M5 Forex...\n")
-        print(f"  🕐 Horário Brasil: {datetime.now(FUSO_BR).strftime('%H:%M:%S')}\n")
-        print(f"  🧠 Catalogador | 🛡️ Filtro Pavio | 📊 Volatilidade | 4 Pares Forex\n")
-        if not self.iq.conectar():print(f"  ❌ Falha conexão!");return
-        self.iq.atualizar()
-        self.ultimo_dia=datetime.now(FUSO_BR).day
-        print(f"\n  ✅ QUANTUM IA M5 | 🧠 Catalogador | 📊 Volatilidade | Forex\n")
-        self.tg.send(f"🧠 *QUANTUM IA M5 FOREX*\n📊 26 Estratégias | 4 Pares\n🛡️ Filtro de Pavio\n📊 Filtro de Volatilidade\n🎯 Melhor Combinação\n⚡ SEM Bloqueio\n⏰ {datetime.now(FUSO_BR).strftime('%H:%M:%S')}")
-
+        print("⚛️ Bot M5 OTC iniciando...")
+        self.tg.send("🔥 *QUANTUM IA M5 ATIVADO*\n📊 4 Estratégias OTC Otimizadas\n🎯 Confluência 2+\n📊 Volatilidade ATR\n🔄 Gale 1")
+        
         while True:
             try:
-                agora=datetime.now(FUSO_BR)
-                if agora.hour==23 and agora.minute==59 and not self.placar_enviado:
-                    self.fechar_dia();self.placar_enviado=True
-                if agora.day!=self.ultimo_dia:self.ultimo_dia=agora.day;self.placar_enviado=False
-                if agora.second in[0,30]:
-                    try:self.iq.atualizar()
-                    except:self.iq.ok=False
-                if not self.op:
-                    try:
-                        sinal=self.m.obter_sinal_dinamico(self.iq.velas,[])
-                        if sinal and time.time()-self.ult>60:
-                            self.op=True;self.sinais+=1
-                            minuto=agora.minute
-                            resto=minuto%5
-                            if resto==0 and agora.second==0:
-                                he=(agora.replace(second=0,microsecond=0)).strftime('%H:%M')
-                            else:
-                                he=(agora.replace(second=0,microsecond=0)+timedelta(minutes=5-resto)).strftime('%H:%M')
-                            est=sinal.get('estrategia','N/A')
-                            print(f"\n⚛️ #{self.sinais} {sinal['ativo']} {sinal['direcao']} | {sinal['confianca']:.0f}% | 🧠 {est} | ⏰ {he}")
-                            self.tg.send(self.fmt_sinal(sinal))
-                            self.ult=time.time()
-                            asyncio.create_task(self.corrigir(sinal))
-                    except:pass
-                if self.m.catalogador.total_operacoes>0 and self.m.catalogador.total_operacoes%10==0 and self.m.catalogador.total_operacoes!=self.m.catalogador.ultimo_relatorio:
-                    relatorio=self.m.catalogador.get_relatorio()
-                    if relatorio:
-                        self.tg.send(relatorio)
-                        self.m.catalogador.ultimo_relatorio=self.m.catalogador.total_operacoes
-                if agora.second in[0,30]:
-                    try:
-                        w,l,g1=self.p.w,self.p.l,self.p.g1
-                        total_profit=w+g1;total_trades=total_profit+l
-                        tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
-                        lucro=round(w*1.6+g1*0.4-l*5,2)
-                        comb=self.m.catalogador.combinacao_atual
-                        info_comb=f" | 🧠 {comb['estrategia']} em {comb['par']}" if comb else ""
-                        print(f"{C.GOLD}┌──────────────────────────────────────────────────────┐{C.E}")
-                        print(f"{C.GOLD}│{C.E} ⏰ {agora.strftime('%H:%M:%S')} | 📨{self.sinais} | 🟢{w}W 🟡{g1}G1 🔴{l}L 🎯{tx}% | 💰+R${lucro} | 🛡️{self.m.sinais_bloqueados_pavio} | 📊{self.m.sinais_bloqueados_volatilidade}{info_comb}")
-                        print(f"{C.GOLD}└──────────────────────────────────────────────────────┘{C.E}")
-                    except:pass
-                await asyncio.sleep(3)
+                self.verificar_zeramento_diario()
+                await self.atualizar_velas()
+                sinal = self.buscar_sinal_consenso()
+                
+                if sinal and time.time() - self.ult_sinal > INTERVALO_MINIMO:
+                    horario_entrada = self.calcular_horario_entrada()
+                    horario_envio = horario_entrada - timedelta(seconds=ANTECEDENCIA)
+                    agora = datetime.now(FUSO_BR)
+                    espera = (horario_envio - agora).total_seconds()
+                    
+                    if espera > 0:
+                        await asyncio.sleep(espera)
+                    
+                    self.ult_sinal = time.time()
+                    msg = self.formatar_sinal(sinal, horario_entrada)
+                    self.tg.send(msg)
+                    
+                    # Iniciar monitoramento
+                    asyncio.create_task(self.monitorar_resultado(sinal, horario_entrada))
+                
+                await asyncio.sleep(1)
+                
             except KeyboardInterrupt:
-                clear();w,l,g1=self.p.w,self.p.l,self.p.g1
-                total_profit=w+g1;total_trades=total_profit+l
-                tx=round((total_profit/total_trades)*100,1) if total_trades>0 else 0
-                lucro=round(w*1.6+g1*0.4-l*5,2)
-                print(f"\n👋 🟢{w}W 🟡{g1}G1 🔴{l}L | 🎯{tx}% | 💰+R${lucro}\n")
-                self.tg.send(f"⚠️ *Desligado*\n🟢{w}W 🟡{g1}G1 🔴{l}L\n🎯{tx}%\n💰+R${lucro}")
-                if self.iq.api:
-                    try:self.iq.api.close()
-                    except:pass
+                print("🛑 Encerrado.")
                 break
             except Exception as e:
-                print(f"  {C.R}❌ {str(e)[:40]}{C.E}");self.iq.ok=False;await asyncio.sleep(5)
+                print(f"Erro: {e}")
+                await asyncio.sleep(10)
 
-if __name__=="__main__":
-    asyncio.run(Bot().run())
+if __name__ == "__main__":
+    bot = BotM5()
+    asyncio.run(bot.executar())
