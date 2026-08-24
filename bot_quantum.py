@@ -9,7 +9,6 @@ import asyncio, time, requests, numpy as np, signal, sys, json, os, random
 from datetime import datetime, timedelta, timezone
 from collections import deque, defaultdict
 from pathlib import Path
-from scipy import stats
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
@@ -64,6 +63,30 @@ class Telegram:
         except: 
             pass
 
+# ==================== FUNÇÕES AUXILIARES ====================
+
+def calcular_regressao_linear(x, y):
+    """Calcula regressão linear sem scipy"""
+    n = len(x)
+    if n < 2:
+        return 0, 0
+        
+    # Calcular médias
+    mean_x = sum(x) / n
+    mean_y = sum(y) / n
+    
+    # Calcular slope e intercept
+    numerador = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
+    denominador = sum((xi - mean_x) ** 2 for xi in x)
+    
+    if denominador == 0:
+        return 0, mean_y
+        
+    slope = numerador / denominador
+    intercept = mean_y - slope * mean_x
+    
+    return slope, intercept
+
 # ==================== ESTRATÉGIAS M5 OTC ====================
 
 class PriceActionM5:
@@ -84,6 +107,10 @@ class PriceActionM5:
         range1 = v1['high'] - v1['low']
         range2 = v2['high'] - v2['low']
         
+        # Evitar divisão por zero
+        if range1 == 0:
+            return None, 0
+            
         # Identificar padrões
         padroes = []
         
@@ -129,14 +156,14 @@ class PriceActionM5:
         return None, 0
     
     def analisar_tendencia(self, velas):
-        """Analisa tendência de curto prazo"""
+        """Analisa tendência de curto prazo usando regressão linear"""
         if len(velas) < 10:
             return 'NEUTRO'
             
         closes = [v['close'] for v in velas[-10:]]
-        # Usar regressão linear para tendência
-        x = np.arange(len(closes))
-        slope, _, _, _, _ = stats.linregress(x, closes)
+        x = list(range(len(closes)))
+        
+        slope, _ = calcular_regressao_linear(x, closes)
         
         if slope > 0.0001:
             return 'ALTA'
@@ -180,7 +207,7 @@ class SuporteResistenciaM5:
     def calcular_niveis(self, velas, periodo=20):
         """Calcula níveis de suporte e resistência"""
         if len(velas) < periodo:
-            return None, None
+            return None, None, None
             
         # Pivots recentes
         altas = [v['high'] for v in velas[-periodo:]]
@@ -249,7 +276,7 @@ class BreakoutM5:
         avg_range = np.mean([v['high'] - v['low'] for v in velas[-10:]])
         
         # Consolidação = range pequeno comparado às velas
-        if max_range < avg_range * 1.5:
+        if avg_range > 0 and max_range < avg_range * 1.5:
             return max(altas), min(baixas)
         return None, None
     
@@ -432,7 +459,15 @@ class BotM5:
             return 0
             
         closes = [v['close'] for v in velas[-20:]]
-        returns = np.diff(np.log(closes))
+        # Calcular retornos logarítmicos
+        returns = []
+        for i in range(1, len(closes)):
+            if closes[i-1] > 0:
+                returns.append(np.log(closes[i] / closes[i-1]))
+        
+        if not returns:
+            return 0
+            
         return np.std(returns) * 100  # Volatilidade em percentual
 
     def buscar_sinal_consenso(self):
