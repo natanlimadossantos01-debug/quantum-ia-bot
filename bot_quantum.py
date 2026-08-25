@@ -1,30 +1,33 @@
 #!/usr/bin/env python3
 """
-⚛️ QUANTUM IA M5 - ESTRATÉGIAS OTC OTIMIZADAS
-📊 Price Action + Suportes/Resistências + Breakouts
-🎯 Foco em M5 para ativos OTC
-🔄 Com gerenciamento de risco e volatilidade
+⚛️ QUANTUM IA M5 - OTC OTIMIZADO - ANTI-TRAVAMENTO
+📊 4 Estratégias
+🎯 Confiança mínima: 62%
+🛡️ ATR ampliado
+🔄 Reconexão automática
+💓 Heartbeat
+✅ Correção: close vs open
 """
 import asyncio, time, requests, numpy as np, signal, sys, json, os
 from datetime import datetime, timedelta, timezone
 from collections import deque
+from pathlib import Path
 
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
-# Configurações M5
-INTERVALO_MINIMO = 600       # 10 min entre sinais
+INTERVALO_MINIMO = 600
 USAR_GALE = True
-ANTECEDENCIA = 30            
-CONFIANCA_MINIMA = 70
-TIMEFRAME = 300              # 5 minutos
+ANTECEDENCIA = 30
+CONFIANCA_MINIMA = 62          # Confiança mínima 62%
+TIMEFRAME = 300
 
-# Volatilidade M5
-ATR_MIN = 0.0003
-ATR_MAX = 0.0020
+# ATR ampliado
+ATR_MIN = 0.00005
+ATR_MAX = 0.0050
 
 def banner():
-    print("⚛️ QUANTUM IA M5 - Estratégias OTC Otimizadas")
+    print("⚛️ QUANTUM IA M5 - OTC | Confiança 62%+")
 
 def carregar_config():
     token = os.environ.get('TELEGRAM_TOKEN')
@@ -57,145 +60,76 @@ class Telegram:
         except: 
             pass
 
-# ==================== FUNÇÕES AUXILIARES ====================
-
-def calcular_regressao_linear(x, y):
-    """Calcula regressão linear sem scipy"""
-    n = len(x)
-    if n < 2:
-        return 0, 0
-    mean_x = sum(x) / n
-    mean_y = sum(y) / n
-    numerador = sum((xi - mean_x) * (yi - mean_y) for xi, yi in zip(x, y))
-    denominador = sum((xi - mean_x) ** 2 for xi in x)
-    if denominador == 0:
-        return 0, mean_y
-    slope = numerador / denominador
-    intercept = mean_y - slope * mean_x
-    return slope, intercept
-
-# ==================== ESTRATÉGIAS M5 OTC ====================
-
 class PriceActionM5:
-    def identificar_padroes(self, velas):
-        if len(velas) < 5:
-            return None, 0
-        v1 = velas[-1]
-        v2 = velas[-2]
-        corpo1 = abs(v1['close'] - v1['open'])
-        range1 = v1['high'] - v1['low']
-        if range1 == 0:
-            return None, 0
-        # Engolfo de Alta
-        if (v2['close'] < v2['open'] and v1['close'] > v1['open'] and
-            v1['open'] < v2['close'] and v1['close'] > v2['open']):
-            return ('CALL', 80)
-        # Engolfo de Baixa
-        elif (v2['close'] > v2['open'] and v1['close'] < v1['open'] and
-              v1['open'] > v2['close'] and v1['close'] < v2['open']):
-            return ('PUT', 80)
-        return None, 0
-    
     def analisar(self, velas):
         try:
-            if len(velas) < 10:
+            if len(velas) < 5:
                 return None, 0
-            padrao, conf = self.identificar_padroes(velas)
-            if padrao:
-                return padrao, conf
+            v1 = velas[-1]
+            v2 = velas[-2]
+            if (v2['close'] < v2['open'] and v1['close'] > v1['open'] and
+                v1['open'] < v2['close'] and v1['close'] > v2['open']):
+                return ('CALL', 80)
+            elif (v2['close'] > v2['open'] and v1['close'] < v1['open'] and
+                  v1['open'] > v2['close'] and v1['close'] < v2['open']):
+                return ('PUT', 80)
             return None, 0
         except:
             return None, 0
 
 class SuporteResistenciaM5:
-    def calcular_niveis(self, velas, periodo=20):
-        if len(velas) < periodo:
-            return None, None, None
-        altas = [v['high'] for v in velas[-periodo:]]
-        baixas = [v['low'] for v in velas[-periodo:]]
-        closes = [v['close'] for v in velas[-periodo:]]
-        resistencia = np.percentile(altas, 80)
-        suporte = np.percentile(baixas, 20)
-        sma = np.mean(closes)
-        return suporte, resistencia, sma
-    
     def analisar(self, velas):
         try:
             if len(velas) < 20:
                 return None, 0
-            suporte, resistencia, sma = self.calcular_niveis(velas)
-            if suporte is None:
-                return None, 0
+            altas = [v['high'] for v in velas[-20:]]
+            baixas = [v['low'] for v in velas[-20:]]
+            resistencia = np.percentile(altas, 80)
+            suporte = np.percentile(baixas, 20)
             atual = velas[-1]['close']
             anterior = velas[-2]['close']
-            if anterior < resistencia and atual > resistencia and atual > sma * 1.002:
+            if anterior < resistencia and atual > resistencia:
                 return 'CALL', 75
-            elif anterior > suporte and atual < suporte and atual < sma * 0.998:
+            elif anterior > suporte and atual < suporte:
                 return 'PUT', 75
             return None, 0
         except:
             return None, 0
 
 class BreakoutM5:
-    def identificar_consolidacao(self, velas):
-        if len(velas) < 10:
-            return None, None
-        altas = [v['high'] for v in velas[-10:]]
-        baixas = [v['low'] for v in velas[-10:]]
-        max_range = max(altas) - min(baixas)
-        avg_range = np.mean([v['high'] - v['low'] for v in velas[-10:]])
-        if avg_range > 0 and max_range < avg_range * 1.5:
-            return max(altas), min(baixas)
-        return None, None
-    
     def analisar(self, velas):
         try:
-            if len(velas) < 15:
+            if len(velas) < 10:
                 return None, 0
-            resistencia, suporte = self.identificar_consolidacao(velas)
-            if resistencia is None:
-                return None, 0
+            altas = [v['high'] for v in velas[-10:]]
+            baixas = [v['low'] for v in velas[-10:]]
+            resistencia = max(altas)
+            suporte = min(baixas)
             atual = velas[-1]['close']
-            anterior = velas[-2]['close']
-            if anterior < resistencia and atual > resistencia:
-                dif_percent = (atual - resistencia) / resistencia * 100
-                if dif_percent > 0.03:
-                    return 'CALL', 80
-            elif anterior > suporte and atual < suporte:
-                dif_percent = (suporte - atual) / suporte * 100
-                if dif_percent > 0.03:
-                    return 'PUT', 80
+            if atual > resistencia:
+                return 'CALL', 80
+            elif atual < suporte:
+                return 'PUT', 80
             return None, 0
         except:
             return None, 0
 
 class TendenciaM5:
-    def calcular_medias(self, velas):
-        if len(velas) < 30:
-            return None, None, None
-        closes = [v['close'] for v in velas]
-        sma5 = np.mean(closes[-5:])
-        sma10 = np.mean(closes[-10:])
-        sma20 = np.mean(closes[-20:])
-        return sma5, sma10, sma20
-    
     def analisar(self, velas):
         try:
             if len(velas) < 30:
                 return None, 0
-            sma5, sma10, sma20 = self.calcular_medias(velas)
-            if sma5 is None:
-                return None, 0
+            closes = [v['close'] for v in velas]
+            sma5 = np.mean(closes[-5:])
+            sma20 = np.mean(closes[-20:])
             atual = velas[-1]['close']
-            if (sma5 > sma10 > sma20 and atual > sma5 and atual > sma20 * 1.002):
+            if sma5 > sma20 and atual > sma5:
                 return 'CALL', 75
-            elif (sma5 < sma10 < sma20 and atual < sma5 and atual < sma20 * 0.998):
+            elif sma5 < sma20 and atual < sma5:
                 return 'PUT', 75
             return None, 0
         except:
             return None, 0
-
-# ==================== BOT M5 ====================
 
 class BotM5:
     def __init__(self):
@@ -210,6 +144,7 @@ class BotM5:
         self.iq_api = None
         self.placar = {'w': 0, 'g1': 0, 'l': 0}
         self.ult_sinal = 0
+        self.sinais = 0
         self.ultimo_dia = datetime.now(FUSO_BR).day
 
     def conectar_iq(self):
@@ -262,8 +197,9 @@ class BotM5:
                                 'low': float(x['min']), 'close': float(x['close']),
                                 'volume': int(x.get('volume',0))
                             })
+                    print(f"✅ {nome}: {len(self.velas[nome])} velas")
             except Exception as e:
-                print(f"Erro velas {nome}: {e}")
+                print(f"Erro {nome}: {e}")
                 await asyncio.sleep(2)
 
     def calcular_atr(self, velas, periodo=14):
@@ -278,54 +214,40 @@ class BotM5:
             trs.append(tr)
         return np.mean(trs)
 
-    def buscar_sinal_consenso(self):
-        melhores_sinais = []
+    def buscar_sinal(self):
+        """Aceita 1+ estratégia com confiança >= 62%"""
+        melhor_sinal = None
+        melhor_score = 0
+        
         for par, velas in self.velas.items():
-            if len(velas) < 30:
+            if len(velas) < 20:
                 continue
+            
             atr = self.calcular_atr(velas, 14)
             if atr is None or atr < ATR_MIN or atr > ATR_MAX:
+                print(f"🚫 {par}: ATR={atr:.6f} fora da faixa")
                 continue
-            precos = [v['close'] for v in velas]
-            sma20 = sum(precos[-20:]) / 20
-            atual = precos[-1]
-            votos_call = []
-            votos_put = []
-            detalhes_estrategias = []
+            
             for nome_est, est in self.estrategias_m5:
                 resultado = est.analisar(velas)
-                if resultado:
-                    direcao, conf = resultado
-                    if conf >= CONFIANCA_MINIMA:
-                        if direcao == 'CALL':
-                            votos_call.append((conf, nome_est))
-                        else:
-                            votos_put.append((conf, nome_est))
-                        detalhes_estrategias.append(f"{nome_est}: {direcao} ({conf}%)")
-            if len(votos_call) >= 2 and len(votos_call) > len(votos_put):
-                if atual > sma20:
-                    conf_media = sum(c[0] for c in votos_call) / len(votos_call)
-                    melhores_sinais.append({
-                        'ativo': par, 
-                        'direcao': 'CALL', 
-                        'confianca': conf_media,
-                        'estrategias': detalhes_estrategias,
-                        'atr': atr
-                    })
-            elif len(votos_put) >= 2 and len(votos_put) > len(votos_call):
-                if atual < sma20:
-                    conf_media = sum(c[0] for c in votos_put) / len(votos_put)
-                    melhores_sinais.append({
-                        'ativo': par, 
-                        'direcao': 'PUT', 
-                        'confianca': conf_media,
-                        'estrategias': detalhes_estrategias,
-                        'atr': atr
-                    })
-        if melhores_sinais:
-            melhores_sinais.sort(key=lambda x: x['confianca'], reverse=True)
-            return melhores_sinais[0]
-        return None
+                if resultado and len(resultado) >= 2:
+                    d, c = resultado[0], resultado[1]
+                    if d in ('CALL', 'PUT') and c >= CONFIANCA_MINIMA:
+                        print(f"✅ {par} | {nome_est}: {d} {c:.0f}%")
+                        if c > melhor_score:
+                            melhor_score = c
+                            melhor_sinal = {
+                                'ativo': par,
+                                'direcao': d,
+                                'confianca': c,
+                                'estrategia': nome_est,
+                                'atr': atr
+                            }
+        
+        if melhor_sinal is None:
+            print("❌ Nenhum sinal")
+        
+        return melhor_sinal
 
     def calcular_horario_entrada(self):
         agora = datetime.now(FUSO_BR)
@@ -340,11 +262,10 @@ class BotM5:
         ativo = sinal['ativo']
         direcao = sinal['direcao']
         conf = sinal['confianca']
-        estrategias = sinal.get('estrategias', [])
+        estrategia = sinal['estrategia']
         atr = sinal.get('atr', 0)
         hora = horario.strftime('%H:%M')
         emoji_dir = '🟢' if direcao == 'CALL' else '🔴'
-        estrategias_str = '\n'.join(estrategias[:3])
         return f"""🚨 SINAL M5 OTC 🚨
 
 ⚛️ QUANTUM IA M5
@@ -356,8 +277,7 @@ class BotM5:
 📊 DIREÇÃO: {direcao}
 🎯 CONFIANÇA: {conf:.1f}%
 
-📈 ESTRATÉGIAS CONFIRMANDO:
-{estrategias_str}
+📈 ESTRATÉGIA: {estrategia}
 
 📊 VOLATILIDADE: {atr:.5f}
 
@@ -393,6 +313,7 @@ class BotM5:
                     await asyncio.sleep(espera)
                 await asyncio.sleep(10)
                 await self.atualizar_velas()
+                velas = self.velas[ativo]
                 ganhou_gale = False
                 for v in velas:
                     if v['time'].replace(second=0, microsecond=0) == proxima_vela.replace(second=0, microsecond=0):
@@ -429,12 +350,22 @@ class BotM5:
     async def executar(self):
         banner()
         print("⚛️ Bot M5 OTC iniciando...")
-        self.tg.send("🔥 *QUANTUM IA M5 ATIVADO*\n📊 4 Estratégias OTC Otimizadas\n🎯 Confluência 2+\n📊 Volatilidade ATR\n🔄 Gale 1")
+        self.tg.send(f"🔥 *QUANTUM IA M5 OTC*\n📊 4 Estratégias\n🎯 Confiança {CONFIANCA_MINIMA}%+\n📊 ATR ampliado\n🔄 Gale 1\n💓 Heartbeat")
         while True:
             try:
                 self.verificar_zeramento_diario()
+                
+                agora = datetime.now(FUSO_BR)
+                if agora.second == 0:
+                    total_velas = sum(len(v) for v in self.velas.values())
+                    print(f"💓 {agora.strftime('%H:%M:%S')} | Velas: {total_velas} | Sinais: {self.sinais}")
+                    
+                    if total_velas == 0:
+                        print("🔄 Sem velas! Reconectando...")
+                        self.iq_api = None
+                
                 await self.atualizar_velas()
-                sinal = self.buscar_sinal_consenso()
+                sinal = self.buscar_sinal()
                 if sinal and time.time() - self.ult_sinal > INTERVALO_MINIMO:
                     horario_entrada = self.calcular_horario_entrada()
                     horario_envio = horario_entrada - timedelta(seconds=ANTECEDENCIA)
@@ -443,6 +374,7 @@ class BotM5:
                     if espera > 0:
                         await asyncio.sleep(espera)
                     self.ult_sinal = time.time()
+                    self.sinais += 1
                     msg = self.formatar_sinal(sinal, horario_entrada)
                     self.tg.send(msg)
                     asyncio.create_task(self.monitorar_resultado(sinal, horario_entrada))
