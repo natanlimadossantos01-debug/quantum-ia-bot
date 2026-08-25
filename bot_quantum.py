@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 ⚛️ QUANTUM IA M5 - OTC - MAIS SINAIS
-🎯 Confiança mínima: 55%
+🎯 Confiança mínima: 65%
+📊 4 Pares OTC
 🛡️ Anti-pavio relaxado
-📊 6 Pares OTC
 ⏱️ Intervalo: 5 min
 🔄 Gale 1
 """
@@ -15,10 +15,10 @@ from pathlib import Path
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
 FUSO_BR = timezone(timedelta(hours=-3))
 
-INTERVALO_MINIMO = 300       # 5 min (era 600)
+INTERVALO_MINIMO = 300       # 5 min
 USAR_GALE = True
 ANTECEDENCIA = 30
-CONFIANCA_MINIMA = 55        # Reduzido de 62 para 55
+CONFIANCA_MINIMA = 65        # Reduzido para mais sinais
 TIMEFRAME = 300
 
 ATR_MIN = 0.00005
@@ -28,7 +28,6 @@ ATR_MAX = 0.0080             # Ampliado
 PAVIO_LIMITE_SUPERIOR = 0.50  # Era 0.40
 PAVIO_LIMITE_INFERIOR = 0.50  # Era 0.40
 PAVIO_SOMA_LIMITE = 0.70      # Era 0.60
-VERIFICAR_VELAS_ANTERIORES = 1  # Era 2 (menos restritivo)
 
 def banner():
     print("⚛️ QUANTUM IA M5 - OTC | Mais Sinais")
@@ -55,13 +54,11 @@ SENHA = cfg['senha']
 
 from iqoptionapi.stable_api import IQ_Option
 
-# 6 Pares OTC
+# 4 Pares OTC
 ATIVOS_OTC = {
     "EURUSD": "EURUSD-OTC",
     "GBPUSD": "GBPUSD-OTC",
     "EURJPY": "EURJPY-OTC",
-    "USDJPY": "USDJPY-OTC",
-    "AUDUSD": "AUDUSD-OTC",
     "EURGBP": "EURGBP-OTC"
 }
 
@@ -96,7 +93,7 @@ def tem_pavio_excessivo(vela):
         return True
     if pct_pavio_total > PAVIO_SOMA_LIMITE:
         return True
-    if corpo / range_total < 0.08:  # Era 0.10 (mais flexível)
+    if corpo / range_total < 0.08:  # Mais flexível
         return True
     
     return False
@@ -308,7 +305,7 @@ class Bot:
             if len(velas) < 30:
                 continue
             
-            # Anti-pavio (apenas 1 vela anterior)
+            # Anti-pavio (apenas 1 vela)
             if len(velas) >= 1:
                 if tem_pavio_excessivo(velas[-1]):
                     continue
@@ -427,8 +424,8 @@ class Bot:
 
     async def executar(self):
         banner()
-        print("⚛️ Bot M5 OTC mais sinais iniciando...")
-        self.tg.send(f"🔥 *QUANTUM IA M5 OTC*\n📊 6 Pares\n🎯 Confiança {CONFIANCA_MINIMA}%+\n⏱️ Intervalo 5min\n🛡️ Anti-pavio relaxado\n🔄 Gale 1")
+        print("⚛️ Bot M5 OTC iniciando...")
+        self.tg.send(f"🔥 *QUANTUM IA M5 OTC*\n📊 4 Pares\n🎯 Confiança {CONFIANCA_MINIMA}%+\n⏱️ Intervalo 5min\n🛡️ Anti-pavio relaxado\n🔄 Gale 1")
         
         if not self.conectar_iq():
             print("❌ Falha conexão!")
